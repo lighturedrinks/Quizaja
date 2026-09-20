@@ -148,7 +148,10 @@
         </div>
         <div>
          <label class="mb-2 block text-sm font-bold" for="admin-pin-input" style="color:#303a65;">Password kode ini</label>
-         <input id="admin-pin-input" type="password" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 text-center text-lg font-bold tracking-[.15em] text-[#202b58]" maxlength="64" autocomplete="off">
+         <div class="relative">
+          <input id="admin-pin-input" type="password" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 pr-14 text-center text-lg font-bold tracking-[.15em] text-[#202b58]" maxlength="64" autocomplete="off">
+          <button type="button" id="toggle-pin-visibility" class="absolute right-2 top-1/2 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-xl text-lg hover:bg-[#f0eeff]" onclick="togglePasswordVisibility()" aria-label="Lihat/sembunyikan password">👁️</button>
+         </div>
          <p class="mt-1 text-xs font-semibold text-[#68718f]">Minimal 6 karakter.</p>
         </div>
         <p id="admin-pin-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
@@ -343,6 +346,13 @@
       try{ localStorage.setItem('quizarena_device_'+code, 'completed'); }catch{}
     }
 
+    function togglePasswordVisibility(){
+      const input=$("admin-pin-input"), btn=$("toggle-pin-visibility");
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "👁️" : "🙈";
+    }
+
     function leaveAdmin(){
       detachAdminResultsListener();
       firebase.auth().signOut().catch(()=>{});
@@ -398,7 +408,19 @@
 
       try{
         if (codeAlreadyExists) {
-          await firebase.auth().signInWithEmailAndPassword(email, password);
+          try{
+            await firebase.auth().signInWithEmailAndPassword(email, password);
+          }catch(signInErr){
+            // Existing code from before the per-code password system - nobody
+            // has claimed it yet. First correct attempt sets its password.
+            if (signInErr.code === 'auth/user-not-found') {
+              await firebase.auth().createUserWithEmailAndPassword(email, password);
+              $("admin-pin-info").textContent = "Kode lama ini belum punya password. Password yang barusan kamu ketik sekarang jadi passwordnya - simpan baik-baik.";
+              $("admin-pin-info").classList.remove("hidden");
+            } else {
+              throw signInErr;
+            }
+          }
         } else {
           await firebase.auth().createUserWithEmailAndPassword(email, password);
           $("admin-pin-info").textContent = "Kode baru dibuat! Simpan password ini baik-baik.";
