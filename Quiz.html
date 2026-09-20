@@ -413,10 +413,26 @@
           }catch(signInErr){
             // Existing code from before the per-code password system - nobody
             // has claimed it yet. First correct attempt sets its password.
-            if (signInErr.code === 'auth/user-not-found') {
-              await firebase.auth().createUserWithEmailAndPassword(email, password);
-              $("admin-pin-info").textContent = "Kode lama ini belum punya password. Password yang barusan kamu ketik sekarang jadi passwordnya - simpan baik-baik.";
-              $("admin-pin-info").classList.remove("hidden");
+            // Note: Firebase's "email enumeration protection" reports both
+            // "no such account" and "wrong password" as the same generic
+            // invalid-credential error, so we can't tell them apart up front -
+            // we just try to claim it, and if an account genuinely already
+            // exists, that create call itself fails with email-already-in-use.
+            const looksUnclaimed = ['auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials'].includes(signInErr.code);
+            if (looksUnclaimed) {
+              try{
+                await firebase.auth().createUserWithEmailAndPassword(email, password);
+                $("admin-pin-info").textContent = "Kode lama ini belum punya password. Password yang barusan kamu ketik sekarang jadi passwordnya - simpan baik-baik.";
+                $("admin-pin-info").classList.remove("hidden");
+              }catch(claimErr){
+                if (claimErr.code === 'auth/email-already-in-use') {
+                  setError("admin-pin-error","Password salah untuk kode ini.");
+                } else {
+                  setError("admin-pin-error","Gagal masuk: "+(claimErr.message||"coba lagi."));
+                }
+                submitBtn.disabled = false;
+                return;
+              }
             } else {
               throw signInErr;
             }
