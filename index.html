@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="id"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Arena</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink:#18213d; --navy:#202b58; --violet:#6d4aff; --yellow:#ffcf3a; --mint:#37d8b0; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"DM Sans",sans-serif; color:var(--ink); }
+    button,input,select { font:inherit; }
+    button:focus-visible,input:focus-visible,select:focus-visible { outline:4px solid rgba(109,74,255,.28); outline-offset:3px; }
+    .arena-root { width:100%; min-height:100vh; overflow:hidden; position:relative; }
+    .arena-root:before,.arena-root:after { content:""; position:absolute; border-radius:999px; pointer-events:none; opacity:.75; }
+    .arena-root:before { width:260px;height:260px;background:#d9d0ff;left:-105px;top:80px; }
+    .arena-root:after { width:340px;height:340px;background:#ffe6a0;right:-150px;bottom:-160px; }
+    .brand-font { font-family:Fraunces,serif; }
+    .screen { display:none; position:relative; z-index:1; animation:rise .42s ease both; }
+    .screen.active { display:block; }
+    .panel-shadow { box-shadow:0 22px 55px rgba(38,35,81,.14); }
+    .dot-grid { background-image:radial-gradient(rgba(109,74,255,.19) 1.3px,transparent 1.3px); background-size:16px 16px; }
+    .option { border:3px solid transparent; transition:transform .18s ease,box-shadow .18s ease; }
+    .option:hover:not(:disabled) { transform:translateY(-3px); box-shadow:0 12px 22px rgba(33,38,82,.14); }
+    .option:disabled { cursor:default; opacity:.75; }
+    .option.correct { border-color:#0b9f78; background:#dcfff4!important; }
+    .option.wrong { border-color:#e0474e; background:#ffe5e7!important; }
+    .timer-ring { width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--yellow) calc(var(--progress)*1%),#eef0fa 0); }
+    .timer-inner { width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:#fff;font-weight:800;color:var(--navy); }
+    .toast { opacity:0;transform:translate(-50%,10px);pointer-events:none;transition:.2s ease; }
+    .toast.show { opacity:1;transform:translate(-50%,0); }
+    .question-card { transition:transform .2s ease; }
+    .question-card:hover { transform:translateY(-2px); }
+    .leaderboard-scroll { overflow-x:auto; }
+    @keyframes rise { from { opacity:0;transform:translateY(12px) } to { opacity:1;transform:translateY(0) } }
+    @media (max-width:640px) { .timer-ring { width:62px;height:62px }.timer-inner { width:50px;height:50px } }
+  </style>
+ </head>
+ <body>
+  <div class="arena-root" style="background: linear-gradient(135deg, rgb(247, 246, 255), rgb(238, 247, 255));">
+   <header class="relative z-10 w-full px-5 pt-5">
+    <nav class="mx-auto flex max-w-6xl items-center justify-between rounded-2xl bg-white/85 px-5 py-3 shadow-sm backdrop-blur">
+     <button type="button" class="flex items-center gap-2 text-left" onclick="leaveAdmin()"> <span class="grid h-9 w-9 place-items-center rounded-xl bg-[#6d4aff] text-white"><i data-lucide="sparkles" class="h-5 w-5"></i></span> <span class="font-extrabold tracking-tight" style="color:#202b58;font-size:18px;">Quiz Arena</span> </button>
+     <button type="button" class="rounded-xl px-4 py-2 text-sm font-bold transition hover:brightness-95" onclick="showScreen('admin-pin')" style="background:#202b58;color:#fff;">Ruang Admin</button>
+    </nav>
+   </header>
+   <main class="relative z-10 w-full px-5 pb-12 pt-7">
+    <section id="join-screen" class="screen active">
+     <div class="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_.9fr]">
+      <div class="py-4 lg:py-10">
+       <div class="mb-5 inline-flex rounded-full px-4 py-2 text-sm font-bold" style="background:#e8e3ff;color:#6040e5;">BELAJAR • BERMAIN • MENANG</div>
+       <h1 class="brand-font max-w-xl font-bold leading-[1.04]" style="color:#202b58;font-size:32px;">Masuk. Jawab. Jadi juara.</h1>
+       <p class="mt-5 max-w-lg text-lg leading-relaxed" style="color:#515b82;">Masukkan kode permainan dari pengajarmu untuk memainkan kuis yang sudah dipublikasikan, dari perangkat mana pun.</p>
+       <div class="mt-7 flex flex-wrap gap-3">
+        <span class="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm" style="color:#202b58;">☁️ Ruang publik siap dimainkan</span>
+        <span class="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm" style="color:#202b58;">⏱️ Tantangan berwaktu</span>
+       </div>
+      </div>
+      <section class="dot-grid rounded-[2rem] p-6 sm:p-9 panel-shadow" style="background:#fff;">
+       <div class="mb-7 flex items-center justify-between">
+        <div>
+         <h2 class="font-extrabold" style="color:#202b58;font-size:24px;">Masuk ke permainan</h2>
+         <p class="mt-1" style="color:#68718f;">Gunakan kode dari pembuat kuis.</p>
+        </div><span class="grid h-12 w-12 place-items-center rounded-2xl bg-[#ffcf3a] text-[#202b58]"><i data-lucide="gamepad-2"></i></span>
+       </div>
+       <form id="code-form" class="space-y-4">
+        <label class="block text-sm font-bold" for="game-code" style="color:#303a65;">Kode permainan</label>
+        <input id="game-code" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 text-center text-2xl font-extrabold tracking-[.22em] uppercase text-[#202b58]" maxlength="8" autocomplete="off">
+        <p id="code-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
+        <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 font-extrabold shadow-lg transition hover:-translate-y-0.5" style="background:#6d4aff;color:#fff;">Mulai bermain</button>
+       </form>
+       <p class="mt-5 text-center text-sm" style="color:#6d4aff;font-weight:700;">Hanya kuis yang telah dipublikasikan yang dapat dimainkan. Coba kode <b>ARENA24</b> (contoh bawaan).</p>
+      </section>
+     </div>
+    </section>
+    <section id="name-screen" class="screen">
+     <div class="mx-auto max-w-lg pt-6">
+      <section class="rounded-[2rem] p-7 sm:p-10 panel-shadow" style="background:#fff;">
+       <button type="button" class="mb-7 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold" onclick="showScreen('join')" style="background:#f0eeff;color:#6040e5;">Kembali</button>
+       <span class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[#37d8b0] text-[#202b58]"><i data-lucide="user-round"></i></span>
+       <h1 class="brand-font font-bold" style="color:#202b58;font-size:32px;">Siapa namamu?</h1>
+       <p class="mt-3 leading-relaxed" style="color:#68718f;">Masukkan nama untuk memulai tantanganmu.</p>
+       <form id="name-form" class="mt-7 space-y-4">
+        <label class="block text-sm font-bold" for="student-name" style="color:#303a65;">Nama pemain</label>
+        <input id="student-name" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 text-lg font-bold text-[#202b58]" maxlength="24" autocomplete="name">
+        <p id="name-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
+        <button type="submit" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;">Mulai kuis</button>
+       </form>
+      </section>
+     </div>
+    </section>
+    <section id="quiz-screen" class="screen">
+     <div class="mx-auto max-w-5xl pt-2">
+      <div class="mb-5 flex items-center justify-between gap-4">
+       <div class="min-w-0">
+        <p id="progress-label" class="text-sm font-extrabold uppercase tracking-[.16em] text-[#6d4aff]"></p>
+        <div class="mt-2 h-3 w-52 overflow-hidden rounded-full bg-[#e2e4f4] sm:w-72"><div id="progress-bar" class="h-full rounded-full bg-[#6d4aff] transition-all duration-500"></div></div>
+       </div>
+       <div id="timer-ring" class="timer-ring shrink-0" style="--progress:100"><div id="timer-number" class="timer-inner">20</div></div>
+      </div>
+      <button id="music-toggle" type="button" class="hidden mb-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#6d4aff] shadow-sm" onclick="toggleMusic()"><span id="music-toggle-icon">🔊</span> <span id="music-toggle-label">Musik menyala</span></button>
+      <audio id="quiz-bg-music" loop></audio>
+      <section class="overflow-hidden rounded-[2rem] bg-white panel-shadow">
+       <div class="p-6 sm:p-10">
+        <div id="question-image-container" class="hidden mb-6 rounded-xl overflow-hidden bg-[#f5f5fa]"><img id="quiz-question-image" src="" alt="Gambar soal" class="w-full h-auto max-h-80 object-cover"></div>
+        <h1 id="question-text" class="brand-font text-3xl font-bold leading-tight text-[#202b58] sm:text-4xl"></h1>
+        <div id="answer-list" class="mt-8 grid gap-3 sm:grid-cols-2"></div>
+       </div>
+      </section>
+      <div id="feedback" class="hidden mt-5 rounded-2xl px-5 py-4 font-extrabold" role="status"></div>
+      <div class="mt-4 rounded-2xl bg-[#f5f3ff] px-5 py-3 text-center">
+       <p class="text-xs font-bold uppercase tracking-[.08em]" style="color:#6d4aff;">TOTAL SEMENTARA</p>
+       <p id="cumulative-score" class="mt-1 text-2xl font-extrabold text-[#202b58]">0 poin</p>
+      </div>
+     </div>
+    </section>
+    <section id="results-screen" class="screen">
+     <div class="mx-auto max-w-xl pt-6 text-center">
+      <section class="rounded-[2rem] p-8 sm:p-12 panel-shadow" style="background:#fff;">
+       <div class="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#ffcf3a] text-[#202b58]"><i data-lucide="trophy" class="h-10 w-10"></i></div>
+       <p class="mt-6 text-sm font-extrabold uppercase tracking-[.16em]" style="color:#6d4aff;">PERMAINAN SELESAI</p>
+       <h1 class="brand-font mt-3 font-bold" style="color:#202b58;font-size:32px;">Skormu sudah masuk!</h1>
+       <div class="my-7 rounded-3xl bg-[#eef0ff] p-6">
+        <p class="font-bold" style="color:#68718f;">SKOR AKHIR</p>
+        <p id="score-value" class="mt-1 text-5xl font-extrabold text-[#6d4aff]">0 poin</p>
+       </div>
+       <p id="score-message" class="text-lg font-semibold text-[#38436d]"></p>
+       <p id="save-result-note" class="mt-3 text-sm font-semibold text-[#08775a]" role="status"></p>
+       <button type="button" class="mt-8 rounded-2xl px-6 py-4 font-extrabold" onclick="resetStudent()" style="background:#6d4aff;color:#fff;">Main lagi</button>
+      </section>
+     </div>
+    </section>
+    <section id="admin-pin-screen" class="screen">
+     <div class="mx-auto max-w-lg pt-6">
+      <section class="rounded-[2rem] p-7 sm:p-10 panel-shadow" style="background:#fff;">
+       <span class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[#6d4aff] text-white"><i data-lucide="lock"></i></span>
+       <h1 class="brand-font font-bold" style="color:#202b58;font-size:32px;">Masuk ke Ruang Admin</h1>
+       <p class="mt-3 leading-relaxed" style="color:#68718f;">Masukkan kode kuismu. Kode baru? Password yang kamu buat di sini jadi kunci kode itu seterusnya. Kode yang sudah ada? Masukkan password yang sama seperti sebelumnya.</p>
+       <form id="admin-pin-form" class="mt-7 space-y-4">
+        <div>
+         <label class="mb-2 block text-sm font-bold" for="admin-auth-code" style="color:#303a65;">Kode kuis</label>
+         <input id="admin-auth-code" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 text-center text-xl font-extrabold tracking-[.15em] uppercase text-[#202b58]" maxlength="8" autocomplete="off">
+        </div>
+        <div>
+         <label class="mb-2 block text-sm font-bold" for="admin-pin-input" style="color:#303a65;">Password kode ini</label>
+         <div class="relative">
+          <input id="admin-pin-input" type="password" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 pr-14 text-center text-lg font-bold tracking-[.15em] text-[#202b58]" maxlength="64" autocomplete="off">
+          <button type="button" id="toggle-pin-visibility" class="absolute right-2 top-1/2 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-xl text-lg hover:bg-[#f0eeff]" onclick="togglePasswordVisibility()" aria-label="Lihat/sembunyikan password">👁️</button>
+         </div>
+         <p class="mt-1 text-xs font-semibold text-[#68718f]">Minimal 6 karakter.</p>
+        </div>
+        <p id="admin-pin-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
+        <p id="admin-pin-info" class="hidden rounded-xl bg-[#eef0ff] px-4 py-3 text-sm font-semibold text-[#4630b0]" role="status"></p>
+        <button id="admin-pin-submit" type="submit" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;">Lanjutkan</button>
+       </form>
+       <button type="button" class="mt-4 w-full rounded-2xl px-5 py-4 font-extrabold" onclick="showScreen('join')" style="background:#f0eeff;color:#6040e5;">Kembali ke Halaman Siswa</button>
+      </section>
+     </div>
+    </section>
+    <section id="admin-screen" class="screen">
+     <div class="mx-auto max-w-6xl">
+      <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
+       <div>
+        <div class="inline-flex rounded-full px-3 py-1 text-sm font-bold" style="background:#ffecb0;color:#755c00;">DASHBOARD PEMBUAT KUIS · KODE <span id="admin-active-code"></span></div>
+        <h1 class="brand-font mt-3 font-bold" style="color:#202b58;font-size:32px;">Buat permainan yang bikin kelas hidup.</h1>
+        <p class="mt-2" style="color:#515b82;">Simpan drafmu, lalu publikasikan agar siswa di perangkat lain dapat langsung bermain.</p>
+       </div>
+       <div class="flex gap-2">
+        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="showScreen('join')" style="background:#fff;color:#6040e5;">Lihat halaman siswa</button>
+        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="leaveAdmin()" style="background:#fff0ef;color:#c3484c;">Keluar / ganti kode</button>
+       </div>
+      </div>
+      <div class="grid gap-6 lg:grid-cols-[.78fr_1.22fr]">
+       <aside class="space-y-6">
+        <section class="rounded-[1.75rem] p-6 panel-shadow" style="background:#fff;">
+         <h2 class="font-extrabold" style="color:#202b58;font-size:24px;">Pengaturan kuis</h2>
+         <form id="settings-form" class="mt-5 space-y-4">
+          <div><label class="mb-2 block text-sm font-bold" for="quiz-title" style="color:#303a65;">Judul kuis</label><input id="quiz-title" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 font-bold"></div>
+          <div><label class="mb-2 block text-sm font-bold" style="color:#303a65;">Kode permainan</label><div id="admin-code-display" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-[#f7f6ff] px-4 py-3 font-extrabold uppercase text-[#6040e5]"></div><p class="mt-1 text-xs font-semibold text-[#68718f]">Kode terkunci ke password yang kamu masukkan tadi. Mau bikin kode lain, keluar dulu lalu masuk dengan kode+password baru.</p></div>
+          <div><label class="mb-2 block text-sm font-bold" for="admin-music-url" style="color:#303a65;">Link musik latar (opsional)</label><input id="admin-music-url" type="url" placeholder="https://.../musik.mp3" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 text-sm"><p class="mt-1 text-xs font-semibold text-[#68718f]">Isi dengan link file MP3 (upload sendiri atau dari situs musik bebas royalti). Musik akan diputar selama siswa mengerjakan kuis.</p></div>
+          <button class="w-full rounded-xl px-4 py-3 font-bold" type="submit" style="background:#eef0ff;color:#6040e5;">Simpan pengaturan draf</button>
+         </form>
+         <div class="mt-5 border-t border-[#e7e7f2] pt-5">
+          <div class="flex items-center justify-between gap-3"><span class="text-sm font-bold" style="color:#303a65;">Status ruang siswa</span><span id="session-status" class="rounded-full px-3 py-1 text-xs font-extrabold"></span></div>
+          <p class="mt-3 text-sm leading-relaxed" style="color:#68718f;">Publikasi menyimpan versi kuis ini ke ruang bersama. Siswa dapat masuk dengan kode tanpa menunggu admin tetap membuka halaman.</p>
+          <button id="publish-button" type="button" class="mt-4 w-full rounded-xl px-4 py-3 font-bold" onclick="publishQuiz()" style="background:#37d8b0;color:#17344a;">Publikasikan / Perbarui versi publik</button>
+         </div>
+        </section>
+       </aside>
+       <div class="space-y-6">
+        <section class="rounded-[1.75rem] p-6 panel-shadow" style="background:#fff;">
+         <div class="flex items-center justify-between gap-4">
+          <h2 id="editor-heading" class="text-xl font-extrabold text-[#202b58]">Tambah pertanyaan</h2>
+          <button id="cancel-edit" type="button" class="hidden rounded-lg px-3 py-2 text-sm font-bold text-[#6d4aff] hover:bg-[#f0eeff]" onclick="cancelEdit()">Batal edit</button>
+         </div>
+         <form id="question-form" class="mt-5 grid gap-4">
+          <div>
+           <div class="flex items-end justify-between gap-3"><label class="mb-2 block text-sm font-bold" for="question-input" style="color:#303a65;">Pertanyaan (maks. 200 kata)</label><span class="mb-2 text-xs font-semibold text-[#68718f]"><span id="word-count">0</span>/200</span></div>
+           <input id="question-input" required class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3" maxlength="1200">
+          </div>
+          <div><label class="mb-2 block text-sm font-bold" for="question-image" style="color:#303a65;">Gambar untuk soal (opsional)</label>
+           <div id="image-preview" class="mb-3 hidden rounded-xl overflow-hidden bg-[#f0f0f5]"><img id="preview-img" src="" alt="Preview gambar soal" class="w-full h-auto max-h-48 object-cover"><button id="remove-image-btn" type="button" class="w-full bg-[#fff0ef] text-xs font-bold text-[#c3484c] py-2 hover:bg-[#ffe5e7] transition">Hapus gambar</button></div>
+           <input id="question-image" type="file" accept="image/*" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 text-sm">
+           <p class="mt-1 text-xs font-semibold text-[#68718f]">Format: JPG, PNG, GIF. Maks. 5MB</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+           <div><label class="mb-2 block text-sm font-bold" for="option-0" style="color:#303a65;">Opsi 1</label><input id="option-0" required class="option-input w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3" maxlength="500"><p id="count-0" class="mt-1 text-xs font-semibold text-[#68718f]">0/100 kata</p></div>
+           <div><label class="mb-2 block text-sm font-bold" for="option-1" style="color:#303a65;">Opsi 2</label><input id="option-1" required class="option-input w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3" maxlength="500"><p id="count-1" class="mt-1 text-xs font-semibold text-[#68718f]">0/100 kata</p></div>
+           <div><label class="mb-2 block text-sm font-bold" for="option-2" style="color:#303a65;">Opsi 3</label><input id="option-2" required class="option-input w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3" maxlength="500"><p id="count-2" class="mt-1 text-xs font-semibold text-[#68718f]">0/100 kata</p></div>
+           <div><label class="mb-2 block text-sm font-bold" for="option-3" style="color:#303a65;">Opsi 4</label><input id="option-3" required class="option-input w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3" maxlength="500"><p id="count-3" class="mt-1 text-xs font-semibold text-[#68718f]">0/100 kata</p></div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+           <div><label class="mb-2 block text-sm font-bold" for="correct-select" style="color:#303a65;">Jawaban benar</label><select id="correct-select" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-white px-4 py-3 font-semibold"><option value="0">Opsi 1</option><option value="1">Opsi 2</option><option value="2">Opsi 3</option><option value="3">Opsi 4</option></select></div>
+           <div><label class="mb-2 block text-sm font-bold" for="duration-input" style="color:#303a65;">Durasi (detik)</label><input id="duration-input" type="number" min="5" max="120" value="20" required class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 font-semibold"></div>
+          </div>
+          <button type="submit" class="rounded-xl px-5 py-3 font-extrabold" style="background:#202b58;color:#fff;">Simpan pertanyaan</button>
+         </form>
+        </section>
+        <section class="rounded-[1.75rem] p-6 panel-shadow" style="background:#f0eeff;">
+         <div class="flex items-center justify-between"><h2 class="font-extrabold" style="color:#202b58;font-size:24px;">Daftar pertanyaan</h2><span id="question-count" class="rounded-full bg-[#6d4aff] px-3 py-1 text-sm font-bold text-white">0</span></div>
+         <div id="question-list" class="mt-5 space-y-3"></div>
+        </section>
+        <section class="rounded-[1.75rem] p-6 panel-shadow" style="background:#fff;">
+         <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+           <h2 class="font-extrabold" style="color:#202b58;font-size:24px;">Daftar siswa yang sudah mengerjakan</h2>
+           <p class="mt-1 text-sm" style="color:#68718f;">Hasil tersimpan otomatis setelah siswa menyelesaikan kuis. Urutan skor tertinggi ditampilkan lebih dahulu.</p>
+          </div>
+          <div class="flex items-center gap-3">
+           <button id="download-excel-button" type="button" class="rounded-lg bg-[#eaf9f2] px-3 py-2 text-xs font-bold text-[#08775a] hover:bg-[#d9fff2] transition" onclick="downloadResultsExcel()">⬇️ Unduh Excel</button>
+           <button id="delete-results-button" type="button" class="rounded-lg bg-[#fff0ef] px-3 py-2 text-xs font-bold text-[#c3484c] hover:bg-[#ffe5e7] transition" onclick="showDeleteConfirmation()">🗑️ Hapus siswa selesai</button>
+           <span class="grid h-11 w-11 place-items-center rounded-2xl bg-[#e8e3ff] text-[#6040e5]"><i data-lucide="medal" class="h-5 w-5"></i></span>
+          </div>
+         </div>
+         <div id="delete-confirmation-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div class="rounded-2xl bg-white p-6 shadow-2xl max-w-sm mx-4">
+           <h3 class="text-lg font-extrabold text-[#202b58]">Hapus siswa selesai?</h3>
+           <p class="mt-3 text-sm text-[#68718f]">Semua entri siswa dengan status "Selesai" akan dihapus dari leaderboard. Tindakan ini tidak dapat dibatalkan.</p>
+           <div class="mt-6 flex gap-3">
+            <button type="button" class="flex-1 rounded-lg bg-[#eef0f6] px-4 py-3 text-sm font-bold text-[#4d587a] hover:bg-[#e0e3f0] transition" onclick="hideDeleteConfirmation()">Batal</button>
+            <button type="button" class="flex-1 rounded-lg bg-[#e0474e] px-4 py-3 text-sm font-bold text-white hover:bg-[#c73e43] transition" onclick="confirmDeleteResults()">Hapus semua</button>
+           </div>
+          </div>
+         </div>
+         <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-2xl bg-[#eef0ff] p-4"><p class="text-xs font-extrabold uppercase tracking-wide" style="color:#6040e5;">Siswa selesai</p><p id="completed-count" class="mt-1 text-3xl font-extrabold text-[#202b58]">0</p></div>
+          <div class="rounded-2xl bg-[#d9fff2] p-4"><p class="text-xs font-extrabold uppercase tracking-wide" style="color:#08775a;">Rata-rata skor</p><p id="average-score" class="mt-1 text-3xl font-extrabold text-[#08775a]">0 poin</p></div>
+         </div>
+         <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2 text-sm font-semibold text-[#68718f]"><span>Ditampilkan:</span><span id="pagination-info">0 - 0 dari 0</span></div>
+          <div class="flex gap-2"><button id="prev-page-btn" type="button" class="rounded-lg bg-[#eef0f6] px-3 py-2 text-xs font-bold text-[#4d587a] hover:bg-[#e0e3f0] disabled:opacity-50 disabled:cursor-not-allowed" disabled>← Sebelumnya</button><button id="next-page-btn" type="button" class="rounded-lg bg-[#eef0f6] px-3 py-2 text-xs font-bold text-[#4d587a] hover:bg-[#e0e3f0] disabled:opacity-50 disabled:cursor-not-allowed" disabled>Berikutnya →</button></div>
+         </div>
+         <div class="leaderboard-scroll mt-5 rounded-xl overflow-hidden border border-[#e7e7f2]" style="max-height:500px;">
+          <table class="w-full border-separate border-spacing-y-0 text-left">
+           <thead class="sticky top-0 bg-[#f7f6ff] text-xs uppercase tracking-wide text-[#68718f]">
+            <tr>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Nama siswa</th>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Kode permainan / kelas</th>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Status</th>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Jawaban benar</th>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Skor total</th>
+             <th class="px-4 py-3 font-extrabold" style="color:#68718f;">Waktu selesai</th>
+            </tr>
+           </thead>
+           <tbody id="results-list"></tbody>
+          </table>
+         </div>
+         <p id="results-empty" class="hidden rounded-2xl bg-[#f7f6ff] px-4 py-7 text-center text-sm font-semibold" style="color:#68718f;">Belum ada siswa yang menyelesaikan kuis dengan kode ini.</p>
+        </section>
+       </div>
+      </div>
+     </div>
+    </section>
+   </main>
+   <div id="toast" class="toast fixed bottom-5 left-1/2 z-50 rounded-xl bg-[#202b58] px-5 py-3 text-sm font-bold text-white shadow-xl" role="status"></div>
+  </div>
+  <script>
+    const defaultQuiz = {
+      title: "Tantangan Sains Ceria", code: "ARENA24", adminPin: "202608",
+      questions: [
+        { id:"q1", text:"Planet manakah yang dikenal sebagai Planet Merah?", options:["Venus","Mars","Jupiter","Saturnus"], correct:1, duration:20 },
+        { id:"q2", text:"Berapa hasil dari 9 × 7?", options:["54","56","63","72"], correct:2, duration:15 },
+        { id:"q3", text:"Hewan mana yang termasuk mamalia?", options:["Hiu","Paus","Gurita","Penguin"], correct:1, duration:20 }
+      ]
+    };
+    const state = { draft:structuredClone(defaultQuiz), publicRecords:[], resultRecords:[], activeQuiz:null, studentName:"", currentQuestion:0, score:0, correctCount:0, seconds:0, timer:null, editId:null, publishing:false, savingResult:false, currentPage:0, resultsPerPage:20, currentImageData:"", lastRenderedCode:"", refreshTimer:null };
+
+    const $ = id => document.getElementById(id);
+    const normalizeCode = value => value.trim().toUpperCase().replace(/\s+/g,"");
+    const escapeHtml = value => { const n=document.createElement("div"); n.textContent=String(value); return n.innerHTML; };
+    const safeQuizData = record => { try { const data=JSON.parse(record.quiz_data); return data && Array.isArray(data.questions) ? data : null; } catch { return null; } };
+
+    // ---- Firebase Realtime Database backend ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyCe7kdfKS82LHPPDRe8bvNGBD5BSTF0cD4",
+      authDomain: "quizaja.firebaseapp.com",
+      databaseURL: "https://quizaja-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "quizaja",
+      storageBucket: "quizaja.firebasestorage.app",
+      messagingSenderId: "715559095041",
+      appId: "1:715559095041:web:fa35b44ae95a4b78dbe900",
+      measurementId: "G-PVFB6Z3F35"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Each quiz code gets its own Firebase Auth account: CODE@quizarena.local,
+    // password = the password the creator sets. This is what the database
+    // Rules check to keep each admin's questions/results private to them.
+    const CODE_AUTH_DOMAIN = '@quizarena.local';
+    const codeToEmail = code => normalizeCode(code).toLowerCase() + CODE_AUTH_DOMAIN;
+
+    function setupPublicListener(){
+      db.ref('quizzes').on('value', snapshot => {
+        const val = snapshot.val() || {};
+        state.publicRecords = Object.keys(val).map(code => ({ quiz_code: code, quiz_data: JSON.stringify(val[code]) }));
+        if ($("admin-screen").classList.contains("active")) renderAdmin();
+      }, () => flash("Gagal tersambung ke database. Periksa koneksi internet."));
+    }
+    function attachAdminResultsListener(code){
+      db.ref('results/'+normalizeCode(code)).on('value', snapshot => {
+        const val = snapshot.val() || {};
+        const results = Object.keys(val).map(id => ({ ...val[id], _key: normalizeCode(code) + '/' + id }));
+        state.resultRecords = results;
+        if ($("admin-screen").classList.contains("active")) renderAdmin();
+      });
+    }
+    function detachAdminResultsListener(){
+      if (state.draft.code) db.ref('results/'+normalizeCode(state.draft.code)).off('value');
+      state.resultRecords = [];
+    }
+
+    // Device tracking uses localStorage on the actual deployed site (one attempt per browser).
+    function checkDeviceForCode(code){
+      try{ return localStorage.getItem('quizarena_device_'+code); }catch{ return null; }
+    }
+    function registerDeviceForCode(code){
+      try{ localStorage.setItem('quizarena_device_'+code, 'active'); }catch{}
+    }
+    function markDeviceCompleted(code){
+      try{ localStorage.setItem('quizarena_device_'+code, 'completed'); }catch{}
+    }
+
+    function togglePasswordVisibility(){
+      const input=$("admin-pin-input"), btn=$("toggle-pin-visibility");
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "👁️" : "🙈";
+    }
+
+    function leaveAdmin(){
+      detachAdminResultsListener();
+      firebase.auth().signOut().catch(()=>{});
+      showScreen('join');
+    }
+
+    function showScreen(name) {
+      document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+      $(name + "-screen").classList.add("active");
+      if (name === "admin") { renderAdmin(); }
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
+    function flash(message) {
+      const toast=$("toast"); toast.textContent=message; toast.classList.add("show");
+      clearTimeout(flash.timer); flash.timer=setTimeout(()=>toast.classList.remove("show"),2800);
+    }
+    function setError(id,message) { $(id).textContent=message; $(id).classList.remove("hidden"); }
+    function hideError(id) { $(id).classList.add("hidden"); }
+
+    $("code-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const code=normalizeCode($("game-code").value);
+      const record=state.publicRecords.find(item => normalizeCode(item.quiz_code) === code);
+      const quiz=record ? safeQuizData(record) : null;
+      if (!quiz || !quiz.questions.length) return setError("code-error","Ruangan belum tersedia. Pastikan admin sudah mempublikasikan kuis dengan kode ini.");
+
+      const deviceStatus=checkDeviceForCode(code);
+      if (deviceStatus === "completed") return setError("code-error","Perangkat ini sudah pernah mengerjakan kuis dengan kode ini. Satu device hanya bisa mengerjakan satu kali.");
+      if (deviceStatus === "active") return setError("code-error","Kuis sedang berlangsung di perangkat ini. Selesaikan atau muat ulang halaman.");
+
+      hideError("code-error"); state.activeQuiz=quiz; showScreen("name");
+    });
+    $("name-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const name=$("student-name").value.trim();
+      if (name.length < 2) return setError("name-error","Masukkan nama minimal 2 karakter.");
+      hideError("name-error");
+      state.studentName=name;
+      registerDeviceForCode(normalizeCode($("game-code").value));
+      startQuiz();
+    });
+    $("admin-pin-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      hideError("admin-pin-error"); $("admin-pin-info").classList.add("hidden");
+      const code = normalizeCode($("admin-auth-code").value);
+      const password = $("admin-pin-input").value;
+      if (code.length < 4) return setError("admin-pin-error","Kode kuis minimal 4 karakter.");
+      if (password.length < 6) return setError("admin-pin-error","Password minimal 6 karakter.");
+
+      const email = codeToEmail(code);
+      const codeAlreadyExists = state.publicRecords.some(r => normalizeCode(r.quiz_code) === code);
+      const submitBtn = $("admin-pin-submit"); submitBtn.disabled = true;
+
+      try{
+        if (codeAlreadyExists) {
+          try{
+            await firebase.auth().signInWithEmailAndPassword(email, password);
+          }catch(signInErr){
+            // Existing code from before the per-code password system - nobody
+            // has claimed it yet. First correct attempt sets its password.
+            // Note: Firebase's "email enumeration protection" reports both
+            // "no such account" and "wrong password" as the same generic
+            // invalid-credential error, so we can't tell them apart up front -
+            // we just try to claim it, and if an account genuinely already
+            // exists, that create call itself fails with email-already-in-use.
+            const looksUnclaimed = ['auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials'].includes(signInErr.code);
+            if (looksUnclaimed) {
+              try{
+                await firebase.auth().createUserWithEmailAndPassword(email, password);
+                $("admin-pin-info").textContent = "Kode lama ini belum punya password. Password yang barusan kamu ketik sekarang jadi passwordnya - simpan baik-baik.";
+                $("admin-pin-info").classList.remove("hidden");
+              }catch(claimErr){
+                if (claimErr.code === 'auth/email-already-in-use') {
+                  setError("admin-pin-error","Password salah untuk kode ini.");
+                } else {
+                  setError("admin-pin-error","Gagal masuk: "+(claimErr.message||"coba lagi."));
+                }
+                submitBtn.disabled = false;
+                return;
+              }
+            } else {
+              throw signInErr;
+            }
+          }
+        } else {
+          await firebase.auth().createUserWithEmailAndPassword(email, password);
+          $("admin-pin-info").textContent = "Kode baru dibuat! Simpan password ini baik-baik.";
+          $("admin-pin-info").classList.remove("hidden");
+        }
+        $("admin-pin-input").value="";
+        state.draft = structuredClone(defaultQuiz);
+        state.draft.code = code;
+        state.draft.title = codeAlreadyExists ? state.draft.title : "Kuis Baru";
+        state.draft.questions = codeAlreadyExists ? [] : [];
+        state.lastRenderedCode = "";
+        attachAdminResultsListener(code);
+        showScreen("admin");
+      }catch(e){
+        if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') setError("admin-pin-error","Password salah untuk kode ini.");
+        else if (e.code === 'auth/email-already-in-use') setError("admin-pin-error","Kode ini sudah dipakai orang lain. Coba kode lain.");
+        else if (e.code === 'auth/weak-password') setError("admin-pin-error","Password terlalu lemah, minimal 6 karakter.");
+        else if (e.code === 'auth/user-not-found') setError("admin-pin-error","Kode tidak ditemukan.");
+        else setError("admin-pin-error","Gagal masuk: "+(e.message||"coba lagi."));
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    function startQuiz() {
+      if (!state.activeQuiz || !state.activeQuiz.questions.length) { flash("Kuis belum tersedia untuk dimainkan."); return showScreen("join"); }
+      clearInterval(state.timer); state.currentQuestion=0; state.score=0; state.correctCount=0; showScreen("quiz"); renderQuestion();
+      startBackgroundMusic(state.activeQuiz.musicUrl);
+    }
+    function renderQuestion() {
+      clearInterval(state.timer);
+      const quiz=state.activeQuiz, question=quiz.questions[state.currentQuestion];
+      if (!question) return showResults();
+      $("feedback").classList.add("hidden");
+      $("cumulative-score").textContent=state.score+" poin";
+      $("progress-label").textContent="Soal "+(state.currentQuestion+1)+" dari "+quiz.questions.length;
+      $("progress-bar").style.width=((state.currentQuestion+1)/quiz.questions.length*100)+"%";
+      $("question-text").textContent=question.text;
+
+      const imageContainer=$("question-image-container");
+      if (question.image_data) {
+        $("quiz-question-image").src=question.image_data;
+        imageContainer.classList.remove("hidden");
+      } else {
+        imageContainer.classList.add("hidden");
+      }
+
+      const colors=["#ffcf3a","#ff8b78","#77d7ff","#a693ff"];
+      $("answer-list").innerHTML=question.options.map((option,index)=>`<button type="button" class="option flex min-h-[80px] items-center gap-4 rounded-2xl px-5 py-4 text-left font-extrabold text-[#202b58]" style="background:${colors[index]}" data-answer="${index}"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/65 text-sm">${["A","B","C","D"][index]}</span><span>${escapeHtml(option)}</span></button>`).join("");
+      $("answer-list").querySelectorAll("button").forEach(button => button.addEventListener("click",()=>answerQuestion(Number(button.dataset.answer))));
+      state.seconds=Number(question.duration)||20; updateTimer();
+      state.timer=setInterval(()=>{ state.seconds-=1; updateTimer(); if(state.seconds<=0) answerQuestion(-1); },1000);
+    }
+    function updateTimer() {
+      const question=state.activeQuiz.questions[state.currentQuestion];
+      $("timer-number").textContent=Math.max(0,state.seconds);
+      $("timer-ring").style.setProperty("--progress",Math.max(0,(state.seconds/question.duration)*100));
+    }
+    function answerQuestion(answer) {
+      if (!$("quiz-screen").classList.contains("active")) return;
+      clearInterval(state.timer);
+      const question=state.activeQuiz.questions[state.currentQuestion], buttons=$("answer-list").querySelectorAll("button");
+      buttons.forEach(button=>{ button.disabled=true; const choice=Number(button.dataset.answer); if(choice===question.correct) button.classList.add("correct"); if(choice===answer && choice!==question.correct) button.classList.add("wrong"); });
+      const correct=answer===question.correct;
+      let earned=0;
+      if(correct) { const used=question.duration-state.seconds; earned=Math.max(0,Math.round(1000*(1-(used/question.duration)*.95))); state.score+=earned; state.correctCount+=1; }
+      const feedback=$("feedback");
+      feedback.className="mt-5 rounded-2xl px-5 py-4 font-extrabold "+(correct?"bg-[#d9fff2] text-[#08775a]":"bg-[#ffe8e8] text-[#b42d39]");
+      feedback.textContent=correct ? "Benar! +"+earned+" poin." : answer===-1 ? "Waktu habis! Lanjut ke soal berikutnya." : "Belum tepat. Jawaban benar: "+question.options[question.correct];
+      feedback.classList.remove("hidden");
+      setTimeout(()=>{ state.currentQuestion+=1; renderQuestion(); },1450);
+    }
+
+    async function showResults() {
+      clearInterval(state.timer);
+      const quiz=state.activeQuiz, maxScore=quiz.questions.length*1000, ratio=state.score/maxScore;
+      $("score-value").textContent=state.score+" poin";
+      $("score-message").textContent=ratio>=.95 ? "Luar biasa — kamu menaklukkan semua soal dengan cepat!" : ratio>=.75 ? "Kerja bagus! Terus pertahankan rasa ingin tahumu." : ratio>=.5 ? "Awal yang bagus. Coba lagi dan raih skor lebih tinggi!" : "Jangan menyerah! Pelajari jawaban dan coba lagi.";
+      $("save-result-note").textContent="";
+      showScreen("results");
+      stopBackgroundMusic();
+      markDeviceCompleted(normalizeCode(quiz.code));
+      await saveStudentResult();
+    }
+    async function saveStudentResult() {
+      if (state.savingResult || !state.activeQuiz) { $("save-result-note").textContent="Skor tampil, tetapi belum dapat tersimpan saat ini."; return; }
+      state.savingResult=true;
+      $("save-result-note").textContent="Menyimpan hasil ke daftar kelas...";
+      const quiz=state.activeQuiz;
+      const code=normalizeCode(quiz.code);
+      const payload = {
+        student_name: state.studentName,
+        student_code: quiz.code || "",
+        student_score: state.score,
+        student_correct: state.correctCount || 0,
+        student_total: quiz.questions ? quiz.questions.length : 0,
+        student_time: new Date().toISOString()
+      };
+      try{
+        await db.ref('results/'+code).push(payload);
+        $("save-result-note").textContent = "Skormu sudah tersimpan di daftar kelas.";
+      }catch(e){
+        $("save-result-note").textContent = "Skor tampil, tetapi penyimpanan hasil belum berhasil.";
+      }
+      state.savingResult=false;
+    }
+    function resetStudent() {
+      clearInterval(state.timer); stopBackgroundMusic(); state.activeQuiz=null; state.studentName=""; $("student-name").value=""; $("game-code").value=""; showScreen("join");
+    }
+
+    function startBackgroundMusic(url){
+      const audio=$("quiz-bg-music"), toggleBtn=$("music-toggle");
+      if(!url){ toggleBtn.classList.add("hidden"); return; }
+      audio.src=url; audio.volume=0.5; audio.muted=false;
+      audio.play().catch(()=>{ /* autoplay blocked, student can unmute manually */ });
+      toggleBtn.classList.remove("hidden");
+      $("music-toggle-icon").textContent="🔊"; $("music-toggle-label").textContent="Musik menyala";
+    }
+    function stopBackgroundMusic(){
+      const audio=$("quiz-bg-music");
+      audio.pause(); audio.currentTime=0; audio.src="";
+      $("music-toggle").classList.add("hidden");
+    }
+    function toggleMusic(){
+      const audio=$("quiz-bg-music");
+      audio.muted=!audio.muted;
+      $("music-toggle-icon").textContent=audio.muted?"🔇":"🔊";
+      $("music-toggle-label").textContent=audio.muted?"Musik dimatikan":"Musik menyala";
+    }
+
+    function renderAdmin() {
+      const code=normalizeCode(state.draft.code || "");
+      if (code && code !== state.lastRenderedCode) {
+        const published=state.publicRecords.find(r=>normalizeCode(r.quiz_code)===code);
+        if (published) {
+          const quiz=safeQuizData(published);
+          if (quiz && quiz.questions) {
+            state.draft.questions=quiz.questions;
+            state.draft.title=quiz.title || state.draft.title;
+            state.draft.musicUrl=quiz.musicUrl || state.draft.musicUrl || "";
+          }
+        }
+        state.lastRenderedCode=code;
+      }
+      $("quiz-title").value=state.draft.title;
+      $("admin-code-display").textContent=state.draft.code;
+      $("admin-active-code").textContent=state.draft.code;
+      $("admin-music-url").value=state.draft.musicUrl || "";
+      const published=state.publicRecords.some(r=>normalizeCode(r.quiz_code)===normalizeCode(state.draft.code));
+      $("session-status").textContent=published?"Versi publik aktif":"Belum dipublikasikan";
+      $("session-status").className="rounded-full px-3 py-1 text-xs font-extrabold "+(published?"bg-[#d9fff2] text-[#08775a]":"bg-[#ffe8aa] text-[#665000]");
+      $("publish-button").disabled=state.publishing;
+      $("question-count").textContent=state.draft.questions.length;
+      renderQuestionList();
+      renderResultsList();
+    }
+    function renderQuestionList() {
+      const list=$("question-list");
+      if(!state.draft.questions.length) { list.innerHTML='<p class="rounded-xl bg-white px-4 py-6 text-center font-semibold text-[#737997]">Belum ada pertanyaan. Buat pertanyaan pertamamu di atas.</p>'; return; }
+      list.innerHTML=state.draft.questions.map((q,index)=>`<article class="question-card rounded-2xl bg-white p-4"><div class="flex gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#eae7ff] font-extrabold text-[#6d4aff]">${index+1}</span><div class="min-w-0 flex-1"><p class="font-extrabold text-[#202b58]">${escapeHtml(q.text)}</p><p class="mt-1 text-sm font-semibold text-[#727997]">${q.duration} detik · Jawaban: ${escapeHtml(q.options[q.correct])}${q.image_data ? ' · 📷 Ada gambar' : ''}</p></div></div><div class="mt-3 flex flex-wrap gap-2 border-t border-[#edf0f6] pt-3"><button class="rounded-lg bg-[#eeecff] px-3 py-2 text-xs font-extrabold text-[#6040e5]" onclick="editQuestion('${q.id}')">Edit</button><button class="rounded-lg bg-[#e8f5ff] px-3 py-2 text-xs font-extrabold text-[#0066cc]" onclick="duplicateQuestion('${q.id}')">Duplikat</button><button class="rounded-lg bg-[#fff0ef] px-3 py-2 text-xs font-extrabold text-[#c3484c]" onclick="deleteQuestion('${q.id}')">Hapus</button><button class="rounded-lg bg-[#eef0f6] px-3 py-2 text-xs font-extrabold text-[#4d587a]" onclick="moveQuestion('${q.id}',-1)" ${index===0?"disabled":""}>↑ Naik</button><button class="rounded-lg bg-[#eef0f6] px-3 py-2 text-xs font-extrabold text-[#4d587a]" onclick="moveQuestion('${q.id}',1)" ${index===state.draft.questions.length-1?"disabled":""}>↓ Turun</button></div></article>`).join("");
+    }
+    function renderResultsList() {
+      const code=normalizeCode(state.draft.code);
+      const rows=state.resultRecords.filter(r=>normalizeCode(r.student_code || "")===code).sort((a,b)=>Number(b.student_score)-Number(a.student_score) || new Date(b.student_time)-new Date(a.student_time));
+      $("completed-count").textContent=rows.length;
+      $("average-score").textContent=rows.length ? Math.round(rows.reduce((sum,row)=>sum+Number(row.student_score||0),0)/rows.length)+" poin" : "0 poin";
+      $("results-empty").classList.toggle("hidden",rows.length>0);
+
+      const totalPages=Math.ceil(rows.length/state.resultsPerPage);
+      state.currentPage=Math.min(state.currentPage, Math.max(0, totalPages-1));
+      const startIdx=state.currentPage*state.resultsPerPage;
+      const endIdx=Math.min(startIdx+state.resultsPerPage, rows.length);
+      const pageRows=rows.slice(startIdx, endIdx);
+
+      $("pagination-info").textContent=rows.length===0 ? "0 - 0 dari 0" : `${startIdx+1} - ${endIdx} dari ${rows.length}`;
+      $("prev-page-btn").disabled=state.currentPage===0;
+      $("next-page-btn").disabled=state.currentPage>=totalPages-1;
+
+      $("results-list").innerHTML=pageRows.map((row,index)=>`<tr class="border-b border-[#e7e7f2] hover:bg-[#fafaff] transition ${index%2===0?"bg-white":"bg-[#fafaff]"} text-sm font-semibold text-[#303a65]"><td class="px-4 py-3"><span class="mr-2 inline-grid h-6 w-6 place-items-center rounded-full bg-[#e8e3ff] text-xs font-extrabold text-[#6040e5]">${startIdx+index+1}</span>${escapeHtml(row.student_name || "Siswa")}</td><td class="px-4 py-3">${escapeHtml(row.student_code || "-")}</td><td class="px-4 py-3"><span class="rounded-full bg-[#d9fff2] px-3 py-1 text-xs font-extrabold text-[#08775a]">Selesai</span></td><td class="px-4 py-3 font-semibold text-[#303a65]">${Number(row.student_correct||0)}/${Number(row.student_total||0)} benar</td><td class="px-4 py-3 font-extrabold text-[#6040e5]">${Number(row.student_score||0)} poin</td><td class="px-4 py-3 text-[#68718f]">${formatTime(row.student_time)}</td></tr>`).join("");
+    }
+    function formatTime(value) {
+      const date=new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+      return new Intl.DateTimeFormat("id-ID",{dateStyle:"medium",timeStyle:"short"}).format(date);
+    }
+
+    $("settings-form").addEventListener("submit",event=>{
+      event.preventDefault();
+      const title=$("quiz-title").value.trim();
+      const musicUrl=$("admin-music-url").value.trim();
+      if(!title) return flash("Judul wajib diisi.");
+      state.draft.title=title; state.draft.musicUrl=musicUrl; renderAdmin(); flash("Pengaturan draf disimpan. Publikasikan untuk memperbarui ruang siswa.");
+    });
+    async function publishQuiz() {
+      const quiz=state.draft;
+      if(!quiz.questions.length) return flash("Tambahkan minimal satu pertanyaan sebelum publikasi.");
+      const code=normalizeCode(quiz.code);
+      if(code.length<4) return flash("Kode permainan minimal 4 karakter.");
+      const data = {title:quiz.title,code,questions:quiz.questions,musicUrl:quiz.musicUrl||""};
+      state.publishing=true; renderAdmin();
+      try{
+        await db.ref('quizzes/'+code).set(data);
+        flash("Versi publik aktif. Siswa dapat masuk dengan kode "+code+".");
+      }catch(e){
+        flash("Publikasi gagal. Periksa koneksi lalu coba lagi.");
+      }
+      state.publishing=false; renderAdmin();
+    }
+
+    function countWords(v) { return v.trim()?v.trim().split(/\s+/).length:0; }
+    function limitWords(input,max,counter) { let words=input.value.trim()?input.value.trim().split(/\s+/):[]; if(words.length>max){words=words.slice(0,max);input.value=words.join(" ");flash("Batas "+max+" kata diterapkan.");} $(counter).textContent=words.length+"/"+max+(max===100?" kata":""); }
+    $("question-input").addEventListener("input",e=>limitWords(e.target,200,"word-count"));
+    document.querySelectorAll(".option-input").forEach((input,index)=>input.addEventListener("input",e=>limitWords(e.target,100,"count-"+index)));
+    $("question-form").addEventListener("submit",event=>{
+      event.preventDefault();
+      const duration=Number($("duration-input").value);
+      if(duration<5 || duration>120) return flash("Durasi harus antara 5 dan 120 detik.");
+      const q={id:state.editId||("q-"+Date.now()),text:$("question-input").value.trim(),options:[0,1,2,3].map(i=>$("option-"+i).value.trim()),correct:Number($("correct-select").value),duration,image_data:state.currentImageData||""};
+      if(q.options.some(o=>!o)) return flash("Semua opsi jawaban wajib diisi.");
+      if(state.editId){
+        const idx=state.draft.questions.findIndex(x=>x.id===state.editId);
+        if(idx>=0) state.draft.questions[idx]=q;
+        flash("Pertanyaan diperbarui. Publikasikan ulang untuk siswa.");
+      } else {
+        state.draft.questions.push(q);
+        flash("Pertanyaan ditambahkan. Publikasikan untuk membuka ruang siswa.");
+      }
+      cancelEdit();
+      renderQuestionList();
+      renderAdmin();
+    });
+    function editQuestion(id) {
+      const q=state.draft.questions.find(x=>x.id===id); if(!q)return;
+      state.editId=id; $("question-input").value=q.text; q.options.forEach((v,i)=>$("option-"+i).value=v); $("correct-select").value=q.correct; $("duration-input").value=q.duration;
+      state.currentImageData=q.image_data||""; updateImagePreview();
+      $("editor-heading").textContent="Edit pertanyaan"; $("cancel-edit").classList.remove("hidden"); limitWords($("question-input"),200,"word-count"); [0,1,2,3].forEach(i=>limitWords($("option-"+i),100,"count-"+i)); window.scrollTo({top:0,behavior:"smooth"});
+    }
+    function cancelEdit() { state.editId=null; state.currentImageData=""; $("question-form").reset(); $("duration-input").value=20; $("editor-heading").textContent="Tambah pertanyaan"; $("cancel-edit").classList.add("hidden"); $("word-count").textContent="0"; [0,1,2,3].forEach(i=>$("count-"+i).textContent="0/100 kata"); updateImagePreview(); }
+    function duplicateQuestion(id) { const q=state.draft.questions.find(x=>x.id===id); if(!q)return; state.draft.questions.push({...structuredClone(q),id:"q-"+Date.now()}); renderAdmin(); flash("Pertanyaan berhasil diduplikat. Publikasikan ulang untuk siswa."); }
+    function deleteQuestion(id) { state.draft.questions=state.draft.questions.filter(x=>x.id!==id); renderAdmin(); flash("Pertanyaan dihapus. Publikasikan ulang untuk siswa."); }
+    function moveQuestion(id,direction) { const from=state.draft.questions.findIndex(x=>x.id===id),to=from+direction; if(to<0||to>=state.draft.questions.length)return; [state.draft.questions[from],state.draft.questions[to]]=[state.draft.questions[to],state.draft.questions[from]]; renderAdmin(); }
+
+    function updateImagePreview() {
+      const preview=$("image-preview");
+      if (state.currentImageData) { $("preview-img").src=state.currentImageData; preview.classList.remove("hidden"); }
+      else { preview.classList.add("hidden"); }
+    }
+    $("question-image").addEventListener("change", event => {
+      const file=event.target.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { flash("Ukuran gambar melebihi 5MB. Pilih gambar yang lebih kecil."); $("question-image").value=""; return; }
+      const reader=new FileReader();
+      reader.onload=e => { state.currentImageData=e.target.result; updateImagePreview(); };
+      reader.onerror=() => { flash("Gagal membaca file gambar. Coba lagi."); };
+      reader.readAsDataURL(file);
+    });
+    $("remove-image-btn").addEventListener("click", event => { event.preventDefault(); state.currentImageData=""; $("question-image").value=""; updateImagePreview(); });
+
+    function downloadResultsExcel() {
+      const code = normalizeCode(state.draft.code);
+      const rows = state.resultRecords
+        .filter(r => normalizeCode(r.student_code || "") === code)
+        .sort((a,b)=>Number(b.student_score)-Number(a.student_score) || new Date(b.student_time)-new Date(a.student_time));
+      if (!rows.length) { flash("Belum ada hasil siswa untuk diunduh."); return; }
+      if (typeof XLSX === "undefined") { flash("Pustaka Excel belum termuat. Coba lagi sebentar."); return; }
+
+      const sheetData = rows.map((row, index) => ({
+        "No": index + 1,
+        "Nama Siswa": row.student_name || "Siswa",
+        "Kode Permainan": row.student_code || "-",
+        "Jawaban Benar": `${Number(row.student_correct||0)}/${Number(row.student_total||0)}`,
+        "Skor Total": Number(row.student_score||0),
+        "Waktu Selesai": formatTime(row.student_time)
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(sheetData);
+      worksheet["!cols"] = [{wch:5},{wch:24},{wch:16},{wch:14},{wch:12},{wch:22}];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil Siswa");
+      const fileName = `hasil-kuis-${code || "quiz"}-${new Date().toISOString().slice(0,10)}.xlsx`;
+      try {
+        XLSX.writeFile(workbook, fileName);
+        flash("File Excel sedang diunduh.");
+      } catch (e) {
+        flash("Gagal membuat file Excel. Coba lagi.");
+      }
+    }
+
+    function showDeleteConfirmation() { $("delete-confirmation-modal").classList.remove("hidden"); }
+    function hideDeleteConfirmation() { $("delete-confirmation-modal").classList.add("hidden"); }
+    async function confirmDeleteResults() {
+      const code = normalizeCode(state.draft.code);
+      const recordsToDelete = state.resultRecords.filter(r => normalizeCode(r.student_code || "") === code);
+      if (recordsToDelete.length === 0) { flash("Tidak ada siswa selesai untuk dihapus."); hideDeleteConfirmation(); return; }
+      hideDeleteConfirmation();
+      $("delete-results-button").disabled = true;
+      flash("Menghapus " + recordsToDelete.length + " hasil siswa...");
+      let deletedCount = 0;
+      for (const record of recordsToDelete) {
+        try{ await db.ref('results/'+record._key).remove(); deletedCount++; }catch(e){}
+      }
+      $("delete-results-button").disabled = false;
+      renderResultsList();
+      flash("Dihapus " + deletedCount + " dari " + recordsToDelete.length + " hasil siswa.");
+    }
+
+    lucide.createIcons();
+    setupPublicListener();
+
+    $("prev-page-btn").addEventListener("click", () => {
+      if (state.currentPage > 0) { state.currentPage--; renderResultsList(); $("results-list").closest(".leaderboard-scroll").scrollTop = 0; }
+    });
+    $("next-page-btn").addEventListener("click", () => {
+      const code = normalizeCode(state.draft.code);
+      const rows = state.resultRecords.filter(r => normalizeCode(r.student_code || "") === code);
+      const totalPages = Math.ceil(rows.length / state.resultsPerPage);
+      if (state.currentPage < totalPages - 1) { state.currentPage++; renderResultsList(); $("results-list").closest(".leaderboard-scroll").scrollTop = 0; }
+    });
+  </script>
+ </body></html>
