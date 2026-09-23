@@ -705,7 +705,10 @@
       state.savingResult=false;
     }
     function resetStudent() {
-      clearInterval(state.timer); stopBackgroundMusic(); state.activeQuiz=null; state.studentName=""; $("student-name").value=""; $("game-code").value=""; showScreen("join");
+      clearInterval(state.timer); stopBackgroundMusic(); state.activeQuiz=null; state.studentName=""; $("student-name").value=""; $("game-code").value="";
+      if (liveStudentListener && state._liveCode) { liveRef(state._liveCode).off('value', liveStudentListener); liveStudentListener=null; }
+      state.isLiveSession=false; state._liveCode=null; state._livePlayerId=null; state._liveQuizStarted=false;
+      showScreen("join");
     }
 
     function startBackgroundMusic(url){
@@ -974,11 +977,6 @@
       return id;
     }
     let liveStudentListener = null;
-    function showLiveSubview(name){
-      ['lobby','question','waiting','leaderboard'].forEach(v=>{
-        $('live-sv-'+v).classList.toggle('hidden', v!==name);
-      });
-    }
     async function startLiveStudent(code){
       const playerId = getOrCreatePlayerId(code);
       state._livePlayerId = playerId;
@@ -989,7 +987,6 @@
         await liveRef(code).child('players/'+playerId).set({ name: state.studentName, score: 0, correctCount: 0, finished: false });
       }catch(e){ flash("Gagal gabung ke sesi live. Coba lagi."); return; }
       showScreen('live-student');
-      showLiveSubview('lobby');
       if (liveStudentListener) liveRef(code).off('value', liveStudentListener);
       liveStudentListener = snapshot => {
         const session = snapshot.val() || {};
