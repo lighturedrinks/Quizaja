@@ -153,8 +153,28 @@
         <p id="admin-gate-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
         <button type="button" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;" onclick="checkAdminGate()">Masuk</button>
        </div>
+       <button type="button" class="mt-4 w-full rounded-2xl px-5 py-4 font-extrabold" onclick="showScreen('join')" style="background:#f0eeff;color:#6040e5;">Kembali ke Halaman Siswa</button>
+      </section>
+     </div>
+    </section>
+    <section id="admin-screen" class="screen">
+     <div class="mx-auto max-w-6xl">
+      <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
+       <div>
+        <div id="admin-dashboard-badge" class="hidden inline-flex rounded-full px-3 py-1 text-sm font-bold" style="background:#ffecb0;color:#755c00;">DASHBOARD PEMBUAT KUIS · KODE <span id="admin-active-code"></span></div>
+        <h1 class="brand-font mt-3 font-bold" style="color:#202b58;font-size:32px;">Buat permainan yang bikin kelas hidup.</h1>
+        <p class="mt-2" style="color:#515b82;">Simpan drafmu, lalu publikasikan agar siswa di perangkat lain dapat langsung bermain.</p>
+       </div>
+       <div class="flex gap-2">
+        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="showScreen('join')" style="background:#fff;color:#6040e5;">Lihat halaman siswa</button>
+        <button id="admin-switch-code-btn" type="button" class="hidden rounded-xl px-4 py-3 font-bold" onclick="switchQuizCode()" style="background:#eef0ff;color:#4630b0;">Ganti kode</button>
+        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="leaveAdmin()" style="background:#fff0ef;color:#c3484c;">Keluar</button>
+       </div>
+      </div>
 
-       <div id="admin-landing-choices" class="hidden mt-7 grid gap-3">
+      <div id="admin-code-gate" class="mb-8 rounded-[1.75rem] p-6 panel-shadow" style="background:#fff;max-width:32rem;">
+       <h2 class="text-xl font-extrabold text-[#202b58]">Pilih kode kuis</h2>
+       <div id="admin-landing-choices" class="mt-5 grid gap-3">
         <p class="mb-1 text-sm leading-relaxed" style="color:#68718f;">Kelola kode yang sudah kamu punya, atau bikin kode kuis baru.</p>
         <button type="button" class="flex items-center justify-between rounded-2xl border-2 border-[#e2e4f4] px-5 py-4 text-left font-bold text-[#202b58] hover:border-[#6d4aff]" onclick="showAdminAuthMode('login')">
          <span>Masuk ke kode yang sudah ada</span><span aria-hidden="true">→</span>
@@ -164,7 +184,7 @@
         </button>
        </div>
 
-       <form id="admin-pin-form" class="hidden mt-7 space-y-4">
+       <form id="admin-pin-form" class="hidden mt-5 space-y-4">
         <button type="button" class="inline-flex items-center gap-1 text-sm font-bold text-[#6d4aff]" onclick="showAdminAuthMode(null)">← Kembali</button>
         <p id="admin-auth-mode-copy" class="text-sm leading-relaxed" style="color:#68718f;"></p>
         <div>
@@ -183,23 +203,9 @@
         <p id="admin-pin-info" class="hidden rounded-xl bg-[#eef0ff] px-4 py-3 text-sm font-semibold text-[#4630b0]" role="status"></p>
         <button id="admin-pin-submit" type="submit" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;">Lanjutkan</button>
        </form>
-       <button type="button" class="mt-4 w-full rounded-2xl px-5 py-4 font-extrabold" onclick="showScreen('join')" style="background:#f0eeff;color:#6040e5;">Kembali ke Halaman Siswa</button>
-      </section>
-     </div>
-    </section>
-    <section id="admin-screen" class="screen">
-     <div class="mx-auto max-w-6xl">
-      <div class="mb-7 flex flex-wrap items-end justify-between gap-4">
-       <div>
-        <div class="inline-flex rounded-full px-3 py-1 text-sm font-bold" style="background:#ffecb0;color:#755c00;">DASHBOARD PEMBUAT KUIS · KODE <span id="admin-active-code"></span></div>
-        <h1 class="brand-font mt-3 font-bold" style="color:#202b58;font-size:32px;">Buat permainan yang bikin kelas hidup.</h1>
-        <p class="mt-2" style="color:#515b82;">Simpan drafmu, lalu publikasikan agar siswa di perangkat lain dapat langsung bermain.</p>
-       </div>
-       <div class="flex gap-2">
-        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="showScreen('join')" style="background:#fff;color:#6040e5;">Lihat halaman siswa</button>
-        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="leaveAdmin()" style="background:#fff0ef;color:#c3484c;">Keluar / ganti kode</button>
-       </div>
       </div>
+
+      <div id="admin-dashboard-content" class="hidden">
       <div class="grid gap-6 lg:grid-cols-[.78fr_1.22fr]">
        <aside class="space-y-6">
         <section class="rounded-[1.75rem] p-6 panel-shadow" style="background:#fff;">
@@ -299,6 +305,7 @@
         </section>
        </div>
       </div>
+      </div>
      </div>
     </section>
    </main>
@@ -394,14 +401,27 @@
       }
       hideError("admin-gate-error");
       $("admin-gate-password").value="";
-      $("admin-gate").classList.add("hidden");
-      $("admin-landing-choices").classList.remove("hidden");
+      showScreen('admin');
     }
     $("admin-gate-password").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); checkAdminGate(); } });
 
+    function showAdminCodeGate(){
+      $("admin-code-gate").classList.remove("hidden");
+      $("admin-dashboard-content").classList.add("hidden");
+      $("admin-dashboard-badge").classList.add("hidden");
+      $("admin-switch-code-btn").classList.add("hidden");
+      showAdminAuthMode(null);
+    }
+    function switchQuizCode(){
+      detachAdminResultsListener();
+      firebase.auth().signOut().catch(()=>{});
+      state.draft.code = "";
+      showAdminCodeGate();
+    }
     function leaveAdmin(){
       detachAdminResultsListener();
       firebase.auth().signOut().catch(()=>{});
+      showAdminCodeGate();
       showScreen('join');
     }
 
@@ -431,12 +451,15 @@
     function showScreen(name) {
       document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
       $(name + "-screen").classList.add("active");
-      if (name === "admin") { renderAdmin(); }
+      if (name === "admin") {
+        // Only reset to the code-chooser if no quiz code is currently active
+        // (e.g. coming in fresh through the gate). If an admin session is
+        // already live (just switched to student view and back), stay put.
+        if (!state.draft.code) showAdminCodeGate();
+        renderAdmin();
+      }
       if (name === "admin-pin") {
-        $("admin-gate").classList.remove("hidden");
-        $("admin-landing-choices").classList.add("hidden");
         $("admin-gate-password").value=""; hideError("admin-gate-error");
-        showAdminAuthMode(null);
       }
       window.scrollTo({top:0,behavior:"smooth"});
     }
@@ -534,6 +557,10 @@
         state.lastRenderedCode = "";
         attachAdminResultsListener(code);
         showScreen("admin");
+        $("admin-code-gate").classList.add("hidden");
+        $("admin-dashboard-content").classList.remove("hidden");
+        $("admin-dashboard-badge").classList.remove("hidden");
+        $("admin-switch-code-btn").classList.remove("hidden");
       }catch(e){
         if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') setError("admin-pin-error","Password salah untuk kode ini.");
         else if (e.code === 'auth/email-already-in-use') setError("admin-pin-error","Kode ini sudah dipakai orang lain. Coba kode lain.");
