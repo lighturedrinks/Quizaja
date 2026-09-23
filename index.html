@@ -139,15 +139,40 @@
      <div class="mx-auto max-w-lg pt-6">
       <section class="rounded-[2rem] p-7 sm:p-10 panel-shadow" style="background:#fff;">
        <span class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[#6d4aff] text-white"><i data-lucide="lock"></i></span>
-       <h1 class="brand-font font-bold" style="color:#202b58;font-size:32px;">Masuk ke Ruang Admin</h1>
-       <p class="mt-3 leading-relaxed" style="color:#68718f;">Masukkan kode kuismu. Kode baru? Password yang kamu buat di sini jadi kunci kode itu seterusnya. Kode yang sudah ada? Masukkan password yang sama seperti sebelumnya.</p>
-       <form id="admin-pin-form" class="mt-7 space-y-4">
+       <h1 class="brand-font font-bold" style="color:#202b58;font-size:32px;">Ruang Admin</h1>
+       <p class="mt-3 leading-relaxed" style="color:#68718f;">Masukkan password Ruang Admin untuk lanjut.</p>
+
+       <div id="admin-gate" class="mt-7 space-y-4">
+        <div>
+         <label class="mb-2 block text-sm font-bold" for="admin-gate-password" style="color:#303a65;">Password Ruang Admin</label>
+         <div class="relative">
+          <input id="admin-gate-password" type="password" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 pr-14 text-center text-lg font-bold tracking-[.15em] text-[#202b58]" autocomplete="off">
+          <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-xl text-lg hover:bg-[#f0eeff]" onclick="toggleGatePasswordVisibility()" aria-label="Lihat/sembunyikan password">👁️</button>
+         </div>
+        </div>
+        <p id="admin-gate-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
+        <button type="button" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;" onclick="checkAdminGate()">Masuk</button>
+       </div>
+
+       <div id="admin-landing-choices" class="hidden mt-7 grid gap-3">
+        <p class="mb-1 text-sm leading-relaxed" style="color:#68718f;">Kelola kode yang sudah kamu punya, atau bikin kode kuis baru.</p>
+        <button type="button" class="flex items-center justify-between rounded-2xl border-2 border-[#e2e4f4] px-5 py-4 text-left font-bold text-[#202b58] hover:border-[#6d4aff]" onclick="showAdminAuthMode('login')">
+         <span>Masuk ke kode yang sudah ada</span><span aria-hidden="true">→</span>
+        </button>
+        <button type="button" class="flex items-center justify-between rounded-2xl px-5 py-4 text-left font-bold" style="background:#6d4aff;color:#fff;" onclick="showAdminAuthMode('create')">
+         <span>Buat kode kuis baru</span><span aria-hidden="true">→</span>
+        </button>
+       </div>
+
+       <form id="admin-pin-form" class="hidden mt-7 space-y-4">
+        <button type="button" class="inline-flex items-center gap-1 text-sm font-bold text-[#6d4aff]" onclick="showAdminAuthMode(null)">← Kembali</button>
+        <p id="admin-auth-mode-copy" class="text-sm leading-relaxed" style="color:#68718f;"></p>
         <div>
          <label class="mb-2 block text-sm font-bold" for="admin-auth-code" style="color:#303a65;">Kode kuis</label>
          <input id="admin-auth-code" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 text-center text-xl font-extrabold tracking-[.15em] uppercase text-[#202b58]" maxlength="8" autocomplete="off">
         </div>
         <div>
-         <label class="mb-2 block text-sm font-bold" for="admin-pin-input" style="color:#303a65;">Password kode ini</label>
+         <label id="admin-pin-input-label" class="mb-2 block text-sm font-bold" for="admin-pin-input" style="color:#303a65;">Password kode ini</label>
          <div class="relative">
           <input id="admin-pin-input" type="password" class="w-full rounded-2xl border-2 border-[#dfe1f0] bg-white px-5 py-4 pr-14 text-center text-lg font-bold tracking-[.15em] text-[#202b58]" maxlength="64" autocomplete="off">
           <button type="button" id="toggle-pin-visibility" class="absolute right-2 top-1/2 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-xl text-lg hover:bg-[#f0eeff]" onclick="togglePasswordVisibility()" aria-label="Lihat/sembunyikan password">👁️</button>
@@ -353,16 +378,66 @@
       btn.textContent = showing ? "👁️" : "🙈";
     }
 
+    // Front-door gate to the admin area. This is a simple, editable
+    // client-side check - not the real security boundary. Change this string
+    // whenever you want a new gate password.
+    const ADMIN_GATE_PASSWORD = "Pajak123#";
+    function toggleGatePasswordVisibility(){
+      const input=$("admin-gate-password");
+      input.type = input.type === "text" ? "password" : "text";
+    }
+    function checkAdminGate(){
+      const value = $("admin-gate-password").value;
+      if (value !== ADMIN_GATE_PASSWORD) {
+        setError("admin-gate-error","Password salah.");
+        return;
+      }
+      hideError("admin-gate-error");
+      $("admin-gate-password").value="";
+      $("admin-gate").classList.add("hidden");
+      $("admin-landing-choices").classList.remove("hidden");
+    }
+    $("admin-gate-password").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); checkAdminGate(); } });
+
     function leaveAdmin(){
       detachAdminResultsListener();
       firebase.auth().signOut().catch(()=>{});
       showScreen('join');
     }
 
+    let adminAuthMode = null; // 'login' | 'create' | null (landing)
+    function showAdminAuthMode(mode){
+      adminAuthMode = mode;
+      hideError("admin-pin-error"); $("admin-pin-info").classList.add("hidden");
+      $("admin-auth-code").value=""; $("admin-pin-input").value="";
+      if (!mode) {
+        $("admin-landing-choices").classList.remove("hidden");
+        $("admin-pin-form").classList.add("hidden");
+        return;
+      }
+      $("admin-landing-choices").classList.add("hidden");
+      $("admin-pin-form").classList.remove("hidden");
+      if (mode === "login") {
+        $("admin-auth-mode-copy").textContent = "Masukkan kode kuis dan password yang sudah kamu buat sebelumnya.";
+        $("admin-pin-input-label").textContent = "Password kode ini";
+        $("admin-pin-submit").textContent = "Masuk";
+      } else {
+        $("admin-auth-mode-copy").textContent = "Pilih kode unik, lalu bikin password buat kode ini. Simpan baik-baik - ini satu-satunya kunci buat kelola kode ini nanti.";
+        $("admin-pin-input-label").textContent = "Buat password baru";
+        $("admin-pin-submit").textContent = "Buat kode ini";
+      }
+    }
+
     function showScreen(name) {
       document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
       $(name + "-screen").classList.add("active");
       if (name === "admin") { renderAdmin(); }
+      if (name === "admin-pin") {
+        $("admin-gate").classList.remove("hidden");
+        $("admin-landing-choices").classList.add("hidden");
+        $("admin-gate-password").value=""; hideError("admin-gate-error");
+        showAdminAuthMode(null);
+      }
       window.scrollTo({top:0,behavior:"smooth"});
     }
     function flash(message) {
@@ -407,7 +482,20 @@
       const submitBtn = $("admin-pin-submit"); submitBtn.disabled = true;
 
       try{
-        if (codeAlreadyExists) {
+        if (adminAuthMode === "create") {
+          if (codeAlreadyExists) {
+            setError("admin-pin-error","Kode ini sudah dipakai. Coba kode lain, atau pilih 'Masuk ke kode yang sudah ada' kalau ini kodemu.");
+            submitBtn.disabled = false; return;
+          }
+          await firebase.auth().createUserWithEmailAndPassword(email, password);
+          $("admin-pin-info").textContent = "Kode baru dibuat! Simpan password ini baik-baik.";
+          $("admin-pin-info").classList.remove("hidden");
+        } else {
+          // login mode
+          if (!codeAlreadyExists) {
+            setError("admin-pin-error","Kode tidak ditemukan. Kalau ini kode baru, pilih 'Buat kode baru'.");
+            submitBtn.disabled = false; return;
+          }
           try{
             await firebase.auth().signInWithEmailAndPassword(email, password);
           }catch(signInErr){
@@ -437,16 +525,12 @@
               throw signInErr;
             }
           }
-        } else {
-          await firebase.auth().createUserWithEmailAndPassword(email, password);
-          $("admin-pin-info").textContent = "Kode baru dibuat! Simpan password ini baik-baik.";
-          $("admin-pin-info").classList.remove("hidden");
         }
         $("admin-pin-input").value="";
         state.draft = structuredClone(defaultQuiz);
         state.draft.code = code;
         state.draft.title = codeAlreadyExists ? state.draft.title : "Kuis Baru";
-        state.draft.questions = codeAlreadyExists ? [] : [];
+        state.draft.questions = [];
         state.lastRenderedCode = "";
         attachAdminResultsListener(code);
         showScreen("admin");
