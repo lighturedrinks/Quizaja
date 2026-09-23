@@ -983,7 +983,7 @@
     }
     async function hostStartLive(){
       const code = state._hostLiveCode;
-      try{ await liveRef(code).update({ phase: 'question', currentIndex: 0, questionStartedAt: Date.now() }); }
+      try{ await liveRef(code).update({ phase: 'question', currentIndex: 0, questionStartedAt: firebase.database.ServerValue.TIMESTAMP }); }
       catch(e){ flash("Gagal memulai kuis."); }
     }
     async function hostShowLeaderboard(){
@@ -1000,7 +1000,7 @@
         if (nextIndex >= state.draft.questions.length) {
           await liveRef(code).update({ phase: 'ended' });
         } else {
-          await liveRef(code).update({ phase: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+          await liveRef(code).update({ phase: 'question', currentIndex: nextIndex, questionStartedAt: firebase.database.ServerValue.TIMESTAMP });
         }
       }catch(e){ flash("Gagal lanjut ke soal berikutnya."); }
     }
@@ -1072,7 +1072,7 @@
       $("live-question-text").textContent = question.text;
       const colors=["#ffcf3a","#ff8b78","#77d7ff","#a693ff"];
       $("live-answer-list").innerHTML = question.options.map((option,index)=>`<button type="button" class="option flex min-h-[80px] items-center gap-4 rounded-2xl px-5 py-4 text-left font-extrabold text-[#202b58]" style="background:${colors[index]}" data-answer="${index}"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/65 text-sm">${["A","B","C","D"][index]}</span><span>${escapeHtml(option)}</span></button>`).join("");
-      $("live-answer-list").querySelectorAll("button").forEach(btn=>btn.addEventListener("click", ()=>submitLiveAnswer(idx, Number(btn.dataset.answer), question)));
+      $("live-answer-list").querySelectorAll("button").forEach(btn=>btn.addEventListener("click", ()=>submitLiveAnswer(idx, Number(btn.dataset.answer), question, startedAt)));
 
       function tick(){
         const elapsed = (Date.now() - startedAt)/1000;
@@ -1087,13 +1087,15 @@
       tick();
       liveTimerInterval = setInterval(tick, 250);
     }
-    async function submitLiveAnswer(idx, answerIndex, question){
+    async function submitLiveAnswer(idx, answerIndex, question, startedAt){
       if (state._liveAnsweredIndex === idx) return;
       state._liveAnsweredIndex = idx;
       clearInterval(liveTimerInterval);
       $("live-answer-list").querySelectorAll("button").forEach(b=>b.disabled=true);
       const correct = answerIndex === question.correct;
-      const earned = correct ? 1000 : 0;
+      // Speed-based scoring, same formula as self-paced mode: faster + correct = more points.
+      const usedSeconds = Math.max(0, (Date.now() - (startedAt || Date.now())) / 1000);
+      const earned = correct ? Math.max(0, Math.round(1000 * (1 - (usedSeconds / question.duration) * 0.95))) : 0;
       try{
         await liveRef(state._liveCode).child('answers/'+idx+'/'+state._livePlayerId).set({ choice: answerIndex, correct, score: earned });
         if (correct) {
