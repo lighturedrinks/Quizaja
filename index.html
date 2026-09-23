@@ -491,6 +491,7 @@
       }
     }
 
+    let isHandlingPopState = false;
     function showScreen(name) {
       document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
       $(name + "-screen").classList.add("active");
@@ -505,7 +506,23 @@
         $("admin-gate-password").value=""; hideError("admin-gate-error");
       }
       window.scrollTo({top:0,behavior:"smooth"});
+      // Record this screen in browser history so the phone/back-button
+      // moves through the app's own screens first, and only exits the site
+      // once the person is back at the very first screen (join).
+      if (!isHandlingPopState) {
+        const current = history.state && history.state.screen;
+        if (current !== name) {
+          try{ history.pushState({ screen: name }, "", "#" + name); }catch(e){}
+        }
+      }
     }
+    window.addEventListener("popstate", event => {
+      const target = (event.state && event.state.screen) || "join";
+      isHandlingPopState = true;
+      showScreen(target);
+      isHandlingPopState = false;
+    });
+    try{ history.replaceState({ screen: "join" }, "", "#join"); }catch(e){}
     function flash(message) {
       const toast=$("toast"); toast.textContent=message; toast.classList.add("show");
       clearTimeout(flash.timer); flash.timer=setTimeout(()=>toast.classList.remove("show"),2800);
