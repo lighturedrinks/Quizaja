@@ -214,12 +214,14 @@
           <div><label class="mb-2 block text-sm font-bold" for="quiz-title" style="color:#303a65;">Judul kuis</label><input id="quiz-title" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 font-bold"></div>
           <div><label class="mb-2 block text-sm font-bold" style="color:#303a65;">Kode permainan</label><div id="admin-code-display" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-[#f7f6ff] px-4 py-3 font-extrabold uppercase text-[#6040e5]"></div><p class="mt-1 text-xs font-semibold text-[#68718f]">Kode terkunci ke password yang kamu masukkan tadi. Mau bikin kode lain, keluar dulu lalu masuk dengan kode+password baru.</p></div>
           <div><label class="mb-2 block text-sm font-bold" for="admin-music-url" style="color:#303a65;">Link musik latar (opsional)</label><input id="admin-music-url" type="url" placeholder="https://.../musik.mp3" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 text-sm"><p class="mt-1 text-xs font-semibold text-[#68718f]">Isi dengan link file MP3 (upload sendiri atau dari situs musik bebas royalti). Musik akan diputar selama siswa mengerjakan kuis.</p></div>
+          <div><label class="mb-2 block text-sm font-bold" for="admin-quiz-mode" style="color:#303a65;">Mode kuis</label><select id="admin-quiz-mode" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-white px-4 py-3 font-bold"><option value="self">Mandiri (siswa main kapan saja)</option><option value="live">Live (dipandu admin, kayak Kahoot)</option></select><p class="mt-1 text-xs font-semibold text-[#68718f]">Mode Live: semua siswa lihat soal yang sama bareng-bareng, kamu yang majuin soalnya.</p></div>
           <button class="w-full rounded-xl px-4 py-3 font-bold" type="submit" style="background:#eef0ff;color:#6040e5;">Simpan pengaturan draf</button>
          </form>
          <div class="mt-5 border-t border-[#e7e7f2] pt-5">
           <div class="flex items-center justify-between gap-3"><span class="text-sm font-bold" style="color:#303a65;">Status ruang siswa</span><span id="session-status" class="rounded-full px-3 py-1 text-xs font-extrabold"></span></div>
           <p class="mt-3 text-sm leading-relaxed" style="color:#68718f;">Publikasi menyimpan versi kuis ini ke ruang bersama. Siswa dapat masuk dengan kode tanpa menunggu admin tetap membuka halaman.</p>
           <button id="publish-button" type="button" class="mt-4 w-full rounded-xl px-4 py-3 font-bold" onclick="publishQuiz()" style="background:#37d8b0;color:#17344a;">Publikasikan / Perbarui versi publik</button>
+          <button id="start-live-button" type="button" class="hidden mt-3 w-full rounded-xl px-4 py-3 font-bold" onclick="openHostLive()" style="background:#ffcf3a;color:#5c4600;">🔴 Buka Panel Live</button>
          </div>
         </section>
        </aside>
@@ -305,6 +307,76 @@
         </section>
        </div>
       </div>
+      </div>
+     </div>
+    </section>
+    <section id="host-live-screen" class="screen">
+     <div class="mx-auto max-w-4xl pt-4">
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+       <div>
+        <p class="text-sm font-extrabold uppercase tracking-[.1em]" style="color:#6d4aff;">SESI LIVE · KODE <span id="host-live-code"></span></p>
+        <h1 id="host-live-title" class="brand-font mt-1 font-bold" style="color:#202b58;font-size:28px;"></h1>
+       </div>
+       <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="endLiveSessionAndReturn()" style="background:#fff0ef;color:#c3484c;">Akhiri &amp; kembali</button>
+      </div>
+
+      <div id="host-live-lobby" class="rounded-[2rem] bg-white panel-shadow p-8 text-center">
+       <p class="text-sm font-bold" style="color:#68718f;">Siswa join lewat kode ini di halaman utama</p>
+       <p id="host-live-code-big" class="mt-2 text-5xl font-extrabold tracking-[.2em]" style="color:#6d4aff;"></p>
+       <p class="mt-6 text-lg font-bold" style="color:#202b58;"><span id="host-live-player-count">0</span> pemain sudah gabung</p>
+       <div id="host-live-player-list" class="mt-4 flex flex-wrap justify-center gap-2"></div>
+       <button type="button" class="mt-8 rounded-2xl px-8 py-4 font-extrabold" onclick="hostStartLive()" style="background:#37d8b0;color:#17344a;">Mulai Kuis</button>
+      </div>
+
+      <div id="host-live-progress" class="hidden rounded-[2rem] bg-white panel-shadow p-8">
+       <p id="host-live-progress-label" class="text-sm font-extrabold uppercase tracking-[.1em]" style="color:#6d4aff;"></p>
+       <h2 id="host-live-question-text" class="brand-font mt-2 font-bold" style="color:#202b58;font-size:26px;"></h2>
+       <p class="mt-4 text-lg font-bold" style="color:#202b58;"><span id="host-live-answered-count">0</span> / <span id="host-live-total-players">0</span> siswa sudah jawab</p>
+       <button type="button" class="mt-6 rounded-2xl px-6 py-4 font-extrabold" onclick="hostShowLeaderboard()" style="background:#eef0ff;color:#4630b0;">Tampilkan Leaderboard</button>
+      </div>
+
+      <div id="host-live-leaderboard" class="hidden rounded-[2rem] bg-white panel-shadow p-8">
+       <h2 class="brand-font mb-4 font-bold" style="color:#202b58;font-size:26px;">Papan Peringkat Sementara</h2>
+       <div id="host-live-leaderboard-list" class="space-y-2"></div>
+       <button id="host-live-next-btn" type="button" class="mt-6 rounded-2xl px-8 py-4 font-extrabold" onclick="hostNextQuestion()" style="background:#6d4aff;color:#fff;">Soal Berikutnya</button>
+      </div>
+
+      <div id="host-live-ended" class="hidden rounded-[2rem] bg-white panel-shadow p-8 text-center">
+       <h2 class="brand-font font-bold" style="color:#202b58;font-size:26px;">Sesi selesai!</h2>
+       <p class="mt-2" style="color:#68718f;">Hasil akhir sudah tersimpan di daftar siswa dashboard, siap diunduh sebagai Excel.</p>
+       <button type="button" class="mt-6 rounded-2xl px-8 py-4 font-extrabold" onclick="showScreen('admin')" style="background:#6d4aff;color:#fff;">Kembali ke Dashboard</button>
+      </div>
+     </div>
+    </section>
+    <section id="live-student-screen" class="screen">
+     <div class="mx-auto max-w-3xl pt-2">
+      <div id="live-sv-lobby" class="rounded-[2rem] bg-white panel-shadow py-20 text-center">
+       <h1 class="brand-font font-bold" style="color:#202b58;font-size:28px;">Menunggu host memulai...</h1>
+       <p id="live-sv-lobby-count" class="mt-3 font-semibold" style="color:#68718f;">0 pemain sudah gabung</p>
+      </div>
+
+      <div id="live-sv-question" class="hidden">
+       <div class="mb-5 flex items-center justify-between gap-4">
+        <p id="live-progress-label" class="text-sm font-extrabold uppercase tracking-[.1em]" style="color:#6d4aff;"></p>
+        <div id="live-timer-ring" class="timer-ring shrink-0" style="--progress:100"><div id="live-timer-number" class="timer-inner">20</div></div>
+       </div>
+       <section class="overflow-hidden rounded-[2rem] bg-white panel-shadow">
+        <div class="p-6 sm:p-10">
+         <div id="live-question-image-container" class="hidden mb-6 rounded-xl overflow-hidden bg-[#f5f5fa]"><img id="live-quiz-question-image" src="" alt="Gambar soal" class="w-full h-auto max-h-80 object-cover"></div>
+         <h1 id="live-question-text" class="brand-font text-3xl font-bold leading-tight text-[#202b58] sm:text-4xl"></h1>
+         <div id="live-answer-list" class="mt-8 grid gap-3 sm:grid-cols-2"></div>
+        </div>
+       </section>
+      </div>
+
+      <div id="live-sv-waiting" class="hidden rounded-[2rem] bg-white panel-shadow py-20 text-center">
+       <h1 class="brand-font font-bold" style="color:#202b58;font-size:28px;">Jawaban terkirim!</h1>
+       <p class="mt-3 font-semibold" style="color:#68718f;">Menunggu host lanjut ke soal berikutnya...</p>
+      </div>
+
+      <div id="live-sv-leaderboard" class="hidden">
+       <h1 class="brand-font mb-6 text-center font-bold" style="color:#202b58;font-size:28px;">Papan Peringkat Sementara</h1>
+       <div id="live-leaderboard-list" class="mx-auto max-w-lg space-y-2"></div>
       </div>
      </div>
     </section>
@@ -489,8 +561,13 @@
       if (name.length < 2) return setError("name-error","Masukkan nama minimal 2 karakter.");
       hideError("name-error");
       state.studentName=name;
-      registerDeviceForCode(normalizeCode($("game-code").value));
-      startQuiz();
+      const code = normalizeCode($("game-code").value);
+      registerDeviceForCode(code);
+      if ((state.activeQuiz.mode || "self") === "live") {
+        startLiveStudent(code);
+      } else {
+        startQuiz();
+      }
     });
     $("admin-pin-form").addEventListener("submit", async event => {
       event.preventDefault();
@@ -688,6 +765,7 @@
             state.draft.questions=quiz.questions;
             state.draft.title=quiz.title || state.draft.title;
             state.draft.musicUrl=quiz.musicUrl || state.draft.musicUrl || "";
+            state.draft.mode=quiz.mode || state.draft.mode || "self";
           }
         }
         state.lastRenderedCode=code;
@@ -696,10 +774,12 @@
       $("admin-code-display").textContent=state.draft.code;
       $("admin-active-code").textContent=state.draft.code;
       $("admin-music-url").value=state.draft.musicUrl || "";
+      $("admin-quiz-mode").value=state.draft.mode || "self";
       const published=state.publicRecords.some(r=>normalizeCode(r.quiz_code)===normalizeCode(state.draft.code));
       $("session-status").textContent=published?"Versi publik aktif":"Belum dipublikasikan";
       $("session-status").className="rounded-full px-3 py-1 text-xs font-extrabold "+(published?"bg-[#d9fff2] text-[#08775a]":"bg-[#ffe8aa] text-[#665000]");
       $("publish-button").disabled=state.publishing;
+      $("start-live-button").classList.toggle("hidden", (state.draft.mode||"self")!=="live" || !published);
       $("question-count").textContent=state.draft.questions.length;
       renderQuestionList();
       renderResultsList();
@@ -738,15 +818,16 @@
       event.preventDefault();
       const title=$("quiz-title").value.trim();
       const musicUrl=$("admin-music-url").value.trim();
+      const mode=$("admin-quiz-mode").value;
       if(!title) return flash("Judul wajib diisi.");
-      state.draft.title=title; state.draft.musicUrl=musicUrl; renderAdmin(); flash("Pengaturan draf disimpan. Publikasikan untuk memperbarui ruang siswa.");
+      state.draft.title=title; state.draft.musicUrl=musicUrl; state.draft.mode=mode; renderAdmin(); flash("Pengaturan draf disimpan. Publikasikan untuk memperbarui ruang siswa.");
     });
     async function publishQuiz() {
       const quiz=state.draft;
       if(!quiz.questions.length) return flash("Tambahkan minimal satu pertanyaan sebelum publikasi.");
       const code=normalizeCode(quiz.code);
       if(code.length<4) return flash("Kode permainan minimal 4 karakter.");
-      const data = {title:quiz.title,code,questions:quiz.questions,musicUrl:quiz.musicUrl||""};
+      const data = {title:quiz.title,code,questions:quiz.questions,musicUrl:quiz.musicUrl||"",mode:quiz.mode||"self"};
       state.publishing=true; renderAdmin();
       try{
         await db.ref('quizzes/'+code).set(data);
@@ -852,6 +933,190 @@
       $("delete-results-button").disabled = false;
       renderResultsList();
       flash("Dihapus " + deletedCount + " dari " + recordsToDelete.length + " hasil siswa.");
+    }
+
+    // ---------------- LIVE MODE (host side) ----------------
+    function liveRef(code){ return db.ref('live/'+normalizeCode(code)); }
+    let hostLiveListener = null;
+
+    async function openHostLive(){
+      const code = normalizeCode(state.draft.code);
+      try{
+        await liveRef(code).set({ phase: 'lobby', currentIndex: -1, questionStartedAt: 0, players: {} });
+      }catch(e){ flash("Gagal membuka sesi live. Coba lagi."); return; }
+      $("host-live-code").textContent = code;
+      $("host-live-code-big").textContent = code;
+      $("host-live-title").textContent = state.draft.title;
+      state._hostLiveCode = code;
+      showScreen('host-live');
+      if (hostLiveListener) liveRef(code).off('value', hostLiveListener);
+      hostLiveListener = snapshot => renderHostLive(snapshot.val() || {});
+      liveRef(code).on('value', hostLiveListener);
+    }
+    function renderHostLive(session){
+      const players = session.players || {};
+      const playerList = Object.values(players);
+      const phase = session.phase || 'lobby';
+      $("host-live-player-count").textContent = playerList.length;
+      $("host-live-player-list").innerHTML = playerList.map(p=>`<span class="rounded-full bg-[#eef0ff] px-3 py-1 text-sm font-bold text-[#4630b0]">${escapeHtml(p.name)}</span>`).join("");
+
+      $("host-live-lobby").classList.toggle("hidden", phase !== "lobby");
+      $("host-live-progress").classList.toggle("hidden", phase !== "question");
+      $("host-live-leaderboard").classList.toggle("hidden", phase !== "leaderboard");
+      $("host-live-ended").classList.toggle("hidden", phase !== "ended");
+
+      if (phase === "question") {
+        const idx = session.currentIndex ?? 0;
+        const q = state.draft.questions[idx];
+        $("host-live-progress-label").textContent = "Soal " + (idx+1) + " dari " + state.draft.questions.length;
+        $("host-live-question-text").textContent = q ? q.text : "";
+        const answers = (session.answers && session.answers[idx]) || {};
+        $("host-live-answered-count").textContent = Object.keys(answers).length;
+        $("host-live-total-players").textContent = playerList.length;
+      }
+      if (phase === "leaderboard") {
+        const ranked = playerList.slice().sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,10);
+        $("host-live-leaderboard-list").innerHTML = ranked.map((p,i)=>`<div class="flex items-center justify-between rounded-xl bg-[#f7f6ff] px-4 py-3"><span class="font-bold text-[#202b58]">${i+1}. ${escapeHtml(p.name)}</span><span class="font-extrabold text-[#6d4aff]">${p.score||0} poin</span></div>`).join("");
+        const isLast = (session.currentIndex ?? 0) >= state.draft.questions.length - 1;
+        $("host-live-next-btn").textContent = isLast ? "Selesaikan Sesi" : "Soal Berikutnya";
+      }
+    }
+    async function hostStartLive(){
+      const code = state._hostLiveCode;
+      try{ await liveRef(code).update({ phase: 'question', currentIndex: 0, questionStartedAt: Date.now() }); }
+      catch(e){ flash("Gagal memulai kuis."); }
+    }
+    async function hostShowLeaderboard(){
+      const code = state._hostLiveCode;
+      try{ await liveRef(code).update({ phase: 'leaderboard' }); }
+      catch(e){ flash("Gagal menampilkan leaderboard."); }
+    }
+    async function hostNextQuestion(){
+      const code = state._hostLiveCode;
+      try{
+        const snap = await liveRef(code).once('value');
+        const session = snap.val() || {};
+        const nextIndex = (session.currentIndex ?? -1) + 1;
+        if (nextIndex >= state.draft.questions.length) {
+          await liveRef(code).update({ phase: 'ended' });
+        } else {
+          await liveRef(code).update({ phase: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+        }
+      }catch(e){ flash("Gagal lanjut ke soal berikutnya."); }
+    }
+    function endLiveSessionAndReturn(){
+      if (hostLiveListener && state._hostLiveCode) { liveRef(state._hostLiveCode).off('value', hostLiveListener); hostLiveListener=null; }
+      showScreen('admin');
+    }
+
+    // ---------------- LIVE MODE (student side) ----------------
+    function getOrCreatePlayerId(code){
+      const key = 'quizarena_playerid_'+normalizeCode(code);
+      let id = localStorage.getItem(key);
+      if (!id) { id = 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); try{ localStorage.setItem(key,id); }catch(e){} }
+      return id;
+    }
+    let liveStudentListener = null, liveTimerInterval = null;
+    async function startLiveStudent(code){
+      const playerId = getOrCreatePlayerId(code);
+      state._livePlayerId = playerId;
+      state._liveCode = code;
+      state._liveAnsweredIndex = -1;
+      try{
+        await liveRef(code).child('players/'+playerId).set({ name: state.studentName, score: 0, correctCount: 0 });
+      }catch(e){ flash("Gagal gabung ke sesi live. Coba lagi."); return; }
+      showScreen('live-student');
+      showLiveSubview('lobby');
+      if (liveStudentListener) liveRef(code).off('value', liveStudentListener);
+      liveStudentListener = snapshot => renderLiveStudent(snapshot.val() || {});
+      liveRef(code).on('value', liveStudentListener);
+    }
+    function showLiveSubview(name){
+      ['lobby','question','waiting','leaderboard'].forEach(v=>{
+        $('live-sv-'+v).classList.toggle('hidden', v!==name);
+      });
+    }
+    function renderLiveStudent(session){
+      const phase = session.phase || 'lobby';
+      if (phase === 'lobby') {
+        showLiveSubview('lobby');
+        $("live-sv-lobby-count").textContent = Object.keys(session.players||{}).length + " pemain sudah gabung";
+      } else if (phase === 'question') {
+        const idx = session.currentIndex ?? 0;
+        if (state._liveAnsweredIndex === idx) {
+          showLiveSubview('waiting');
+        } else {
+          renderLiveQuestion(idx, session.questionStartedAt || Date.now());
+          showLiveSubview('question');
+        }
+      } else if (phase === 'leaderboard') {
+        clearInterval(liveTimerInterval);
+        showLiveSubview('leaderboard');
+        const players = Object.values(session.players||{});
+        const ranked = players.slice().sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,10);
+        $("live-leaderboard-list").innerHTML = ranked.map((p,i)=>`<div class="flex items-center justify-between rounded-xl bg-[#f7f6ff] px-4 py-3"><span class="font-bold text-[#202b58]">${i+1}. ${escapeHtml(p.name)}</span><span class="font-extrabold text-[#6d4aff]">${p.score||0} poin</span></div>`).join("");
+      } else if (phase === 'ended') {
+        clearInterval(liveTimerInterval);
+        finishLiveStudent(session);
+      }
+    }
+    function renderLiveQuestion(idx, startedAt){
+      clearInterval(liveTimerInterval);
+      const quiz = state.activeQuiz;
+      const question = quiz.questions[idx];
+      if (!question) return;
+      $("live-progress-label").textContent = "Soal " + (idx+1) + " dari " + quiz.questions.length;
+      const imageContainer = $("live-question-image-container");
+      if (question.image_data) { $("live-quiz-question-image").src = question.image_data; imageContainer.classList.remove("hidden"); }
+      else imageContainer.classList.add("hidden");
+      $("live-question-text").textContent = question.text;
+      const colors=["#ffcf3a","#ff8b78","#77d7ff","#a693ff"];
+      $("live-answer-list").innerHTML = question.options.map((option,index)=>`<button type="button" class="option flex min-h-[80px] items-center gap-4 rounded-2xl px-5 py-4 text-left font-extrabold text-[#202b58]" style="background:${colors[index]}" data-answer="${index}"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/65 text-sm">${["A","B","C","D"][index]}</span><span>${escapeHtml(option)}</span></button>`).join("");
+      $("live-answer-list").querySelectorAll("button").forEach(btn=>btn.addEventListener("click", ()=>submitLiveAnswer(idx, Number(btn.dataset.answer), question)));
+
+      function tick(){
+        const elapsed = (Date.now() - startedAt)/1000;
+        const remaining = Math.max(0, question.duration - elapsed);
+        $("live-timer-number").textContent = Math.ceil(remaining);
+        $("live-timer-ring").style.setProperty("--progress", Math.max(0,(remaining/question.duration)*100));
+        if (remaining <= 0) {
+          clearInterval(liveTimerInterval);
+          $("live-answer-list").querySelectorAll("button").forEach(b=>b.disabled=true);
+        }
+      }
+      tick();
+      liveTimerInterval = setInterval(tick, 250);
+    }
+    async function submitLiveAnswer(idx, answerIndex, question){
+      if (state._liveAnsweredIndex === idx) return;
+      state._liveAnsweredIndex = idx;
+      clearInterval(liveTimerInterval);
+      $("live-answer-list").querySelectorAll("button").forEach(b=>b.disabled=true);
+      const correct = answerIndex === question.correct;
+      const earned = correct ? 1000 : 0;
+      try{
+        await liveRef(state._liveCode).child('answers/'+idx+'/'+state._livePlayerId).set({ choice: answerIndex, correct, score: earned });
+        if (correct) {
+          const playerRef = liveRef(state._liveCode).child('players/'+state._livePlayerId);
+          const snap = await playerRef.once('value');
+          const cur = snap.val() || {score:0, correctCount:0, name: state.studentName};
+          await playerRef.update({ score: (cur.score||0)+earned, correctCount:(cur.correctCount||0)+1 });
+        }
+      }catch(e){ /* answer submission failed silently; UI still moves to waiting */ }
+      showLiveSubview('waiting');
+    }
+    async function finishLiveStudent(session){
+      if (liveStudentListener) { liveRef(state._liveCode).off('value', liveStudentListener); liveStudentListener=null; }
+      const me = (session.players||{})[state._livePlayerId] || {score:0, correctCount:0};
+      state.score = me.score||0;
+      state.correctCount = me.correctCount||0;
+      const quiz = state.activeQuiz, maxScore=quiz.questions.length*1000, ratio=maxScore?state.score/maxScore:0;
+      $("score-value").textContent=state.score+" poin";
+      $("score-message").textContent=ratio>=.95 ? "Luar biasa — kamu menaklukkan semua soal!" : ratio>=.75 ? "Kerja bagus! Terus pertahankan rasa ingin tahumu." : ratio>=.5 ? "Awal yang bagus. Coba lagi dan raih skor lebih tinggi!" : "Jangan menyerah! Pelajari jawaban dan coba lagi.";
+      $("save-result-note").textContent="";
+      showScreen("results");
+      markDeviceCompleted(normalizeCode(quiz.code));
+      await saveStudentResult();
     }
 
     lucide.createIcons();
