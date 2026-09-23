@@ -928,7 +928,8 @@
       try{
         const snap = await liveRef(code).once('value');
         const existing = snap.val();
-        if (!existing || !existing.phase) {
+        const validPhases = ['lobby', 'started'];
+        if (!existing || !validPhases.includes(existing.phase)) {
           await liveRef(code).set({ phase: 'lobby', players: {} });
         }
       }catch(e){ flash("Gagal membuka sesi live. Coba lagi."); return; }
