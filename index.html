@@ -317,7 +317,10 @@
         <p class="text-sm font-extrabold uppercase tracking-[.1em]" style="color:#6d4aff;">SESI LIVE · KODE <span id="host-live-code"></span></p>
         <h1 id="host-live-title" class="brand-font mt-1 font-bold" style="color:#202b58;font-size:28px;"></h1>
        </div>
-       <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="endLiveSessionAndReturn()" style="background:#fff0ef;color:#c3484c;">Akhiri &amp; kembali</button>
+       <div class="flex gap-2">
+        <button id="host-live-end-btn" type="button" class="rounded-xl px-4 py-3 font-bold" onclick="hostEndLiveSession()" style="background:#fff0ef;color:#c3484c;">Akhiri Sesi</button>
+        <button type="button" class="rounded-xl px-4 py-3 font-bold" onclick="returnToDashboardFromLive()" style="background:#eef0ff;color:#4630b0;">Kembali ke Dashboard</button>
+       </div>
       </div>
 
       <div id="host-live-lobby" class="rounded-[2rem] bg-white panel-shadow p-8 text-center">
@@ -330,6 +333,7 @@
       </div>
 
       <div id="host-live-active" class="hidden rounded-[2rem] bg-white panel-shadow p-8">
+       <div id="host-live-ended-banner" class="hidden mb-5 rounded-xl bg-[#fff0ef] px-4 py-3 text-sm font-bold text-[#c3484c]">Sesi ini sudah diakhiri. Siswa baru nggak bisa join lagi — ini leaderboard finalnya. <button type="button" class="ml-2 underline" onclick="resetLiveSession()">Mulai sesi baru</button></div>
        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 class="brand-font font-bold" style="color:#202b58;font-size:26px;">Leaderboard Live</h2>
         <p class="font-bold" style="color:#202b58;"><span id="host-live-finished-count">0</span> / <span id="host-live-total-count">0</span> sudah selesai</p>
@@ -509,7 +513,7 @@
     function setError(id,message) { $(id).textContent=message; $(id).classList.remove("hidden"); }
     function hideError(id) { $(id).classList.add("hidden"); }
 
-    $("code-form").addEventListener("submit", event => {
+    $("code-form").addEventListener("submit", async event => {
       event.preventDefault();
       const code=normalizeCode($("game-code").value);
       const record=state.publicRecords.find(item => normalizeCode(item.quiz_code) === code);
@@ -519,6 +523,14 @@
       const deviceStatus=checkDeviceForCode(code);
       if (deviceStatus === "completed") return setError("code-error","Perangkat ini sudah pernah mengerjakan kuis dengan kode ini. Satu device hanya bisa mengerjakan satu kali.");
       if (deviceStatus === "active") return setError("code-error","Kuis sedang berlangsung di perangkat ini. Selesaikan atau muat ulang halaman.");
+
+      if ((quiz.mode || "self") === "live") {
+        try{
+          const snap = await liveRef(code).once('value');
+          const phase = (snap.val() || {}).phase;
+          if (phase === "ended") return setError("code-error","Sesi live ini sudah diakhiri oleh admin. Nggak bisa join lagi.");
+        }catch(e){ /* if the check fails, fall through and let them try joining */ }
+      }
 
       hideError("code-error"); state.activeQuiz=quiz; showScreen("name");
     });
@@ -928,7 +940,7 @@
       try{
         const snap = await liveRef(code).once('value');
         const existing = snap.val();
-        const validPhases = ['lobby', 'started'];
+        const validPhases = ['lobby', 'started', 'ended'];
         if (!existing || !validPhases.includes(existing.phase)) {
           await liveRef(code).set({ phase: 'lobby', players: {} });
         }
@@ -945,9 +957,11 @@
       $("host-live-player-list").innerHTML = playerList.map(p=>`<span class="rounded-full bg-[#eef0ff] px-3 py-1 text-sm font-bold text-[#4630b0]">${escapeHtml(p.name)}${p.finished?' ✅':''}</span>`).join("");
 
       $("host-live-lobby").classList.toggle("hidden", phase !== "lobby");
-      $("host-live-active").classList.toggle("hidden", phase !== "started");
+      $("host-live-active").classList.toggle("hidden", phase !== "started" && phase !== "ended");
+      $("host-live-end-btn").classList.toggle("hidden", phase === "ended");
+      $("host-live-ended-banner").classList.toggle("hidden", phase !== "ended");
 
-      if (phase === "started") {
+      if (phase === "started" || phase === "ended") {
         const ranked = playerList.slice().sort((a,b)=>(b.score||0)-(a.score||0));
         const finished = playerList.filter(p=>p.finished).length;
         $("host-live-finished-count").textContent = finished;
@@ -965,7 +979,12 @@
       try{ await liveRef(code).set({ phase: 'lobby', players: {} }); flash("Sesi live direset."); }
       catch(e){ flash("Gagal reset sesi."); }
     }
-    function endLiveSessionAndReturn(){
+    async function hostEndLiveSession(){
+      const code = state._hostLiveCode;
+      try{ await liveRef(code).update({ phase: 'ended' }); flash("Sesi diakhiri. Nggak ada yang bisa join lagi."); }
+      catch(e){ flash("Gagal mengakhiri sesi."); }
+    }
+    function returnToDashboardFromLive(){
       if (hostLiveListener && state._hostLiveCode) { liveRef(state._hostLiveCode).off('value', hostLiveListener); hostLiveListener=null; }
       showScreen('admin');
     }
@@ -997,6 +1016,10 @@
           liveRef(code).off('value', liveStudentListener);
           liveStudentListener = null;
           startQuiz();
+        } else if (phase === 'ended') {
+          liveRef(code).off('value', liveStudentListener);
+          liveStudentListener = null;
+          $("live-sv-lobby").innerHTML = '<h1 class="brand-font font-bold" style="color:#202b58;font-size:28px;">Sesi sudah diakhiri</h1><p class="mt-3 font-semibold" style="color:#68718f;">Admin sudah mengakhiri sesi ini sebelum kamu mulai. Hubungi pengajarmu.</p>';
         } else if (phase === 'lobby') {
           $("live-sv-lobby-count").textContent = Object.keys(session.players||{}).length + " pemain sudah gabung";
         }
