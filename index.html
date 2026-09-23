@@ -214,7 +214,7 @@
           <div><label class="mb-2 block text-sm font-bold" for="quiz-title" style="color:#303a65;">Judul kuis</label><input id="quiz-title" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 font-bold"></div>
           <div><label class="mb-2 block text-sm font-bold" style="color:#303a65;">Kode permainan</label><div id="admin-code-display" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-[#f7f6ff] px-4 py-3 font-extrabold uppercase text-[#6040e5]"></div><p class="mt-1 text-xs font-semibold text-[#68718f]">Kode terkunci ke password yang kamu masukkan tadi. Mau bikin kode lain, keluar dulu lalu masuk dengan kode+password baru.</p></div>
           <div><label class="mb-2 block text-sm font-bold" for="admin-music-url" style="color:#303a65;">Link musik latar (opsional)</label><input id="admin-music-url" type="url" placeholder="https://.../musik.mp3" class="w-full rounded-xl border-2 border-[#e0e2ef] px-4 py-3 text-sm"><p class="mt-1 text-xs font-semibold text-[#68718f]">Isi dengan link file MP3 (upload sendiri atau dari situs musik bebas royalti). Musik akan diputar selama siswa mengerjakan kuis.</p></div>
-          <div><label class="mb-2 block text-sm font-bold" for="admin-quiz-mode" style="color:#303a65;">Mode kuis</label><select id="admin-quiz-mode" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-white px-4 py-3 font-bold"><option value="self">Mandiri (siswa main kapan saja)</option><option value="live">Live (dipandu admin, kayak Kahoot)</option></select><p class="mt-1 text-xs font-semibold text-[#68718f]">Mode Live: siswa menunggu di lobby sampai admin klik mulai, lalu semua mengerjakan soal dengan ritme masing-masing (dibatasi waktu tiap soal) sambil admin memantau leaderboard secara real-time.</p></div>
+          <div><label class="mb-2 block text-sm font-bold" for="admin-quiz-mode" style="color:#303a65;">Mode kuis</label><select id="admin-quiz-mode" class="w-full rounded-xl border-2 border-[#e0e2ef] bg-white px-4 py-3 font-bold"><option value="self">Mandiri (siswa main kapan saja)</option><option value="live">Live (dipandu admin, kayak Kahoot)</option></select><p class="mt-1 text-xs font-semibold text-[#68718f]">Mode Live: semua siswa lihat soal yang sama bareng-bareng, kamu yang majuin soalnya.</p></div>
           <button class="w-full rounded-xl px-4 py-3 font-bold" type="submit" style="background:#eef0ff;color:#6040e5;">Simpan pengaturan draf</button>
          </form>
          <div class="mt-5 border-t border-[#e7e7f2] pt-5">
@@ -326,7 +326,6 @@
        <p class="mt-6 text-lg font-bold" style="color:#202b58;"><span id="host-live-player-count">0</span> pemain sudah gabung</p>
        <div id="host-live-player-list" class="mt-4 flex flex-wrap justify-center gap-2"></div>
        <button type="button" class="mt-8 rounded-2xl px-8 py-4 font-extrabold" onclick="hostStartLive()" style="background:#37d8b0;color:#17344a;">Mulai Kuis</button>
-       <p class="mt-3 text-xs font-semibold" style="color:#9099b8;">Setelah ini diklik, tiap siswa langsung mengerjakan soal dengan ritmenya sendiri (dibatasi waktu tiap soal) — kamu tidak perlu memajukan soal secara manual.</p>
        <p class="mt-4"><button type="button" class="text-xs font-bold underline" onclick="resetLiveSession()" style="color:#9099b8;">Reset sesi (hapus pemain yang sudah gabung)</button></p>
       </div>
 
@@ -344,6 +343,7 @@
       <div id="live-sv-lobby" class="rounded-[2rem] bg-white panel-shadow py-20 text-center">
        <h1 class="brand-font font-bold" style="color:#202b58;font-size:28px;">Menunggu host memulai...</h1>
        <p id="live-sv-lobby-count" class="mt-3 font-semibold" style="color:#68718f;">0 pemain sudah gabung</p>
+       <p class="mt-2 text-sm font-semibold" style="color:#9099b8;">Begitu host mulai, kuis langsung jalan di ritme kamu sendiri.</p>
       </div>
      </div>
     </section>
@@ -925,13 +925,8 @@
       try{
         const snap = await liveRef(code).once('value');
         const existing = snap.val();
-        if (!existing) {
+        if (!existing || !existing.phase) {
           await liveRef(code).set({ phase: 'lobby', players: {} });
-        } else if (!existing.phase) {
-          // Students may have already joined (and created this node) before
-          // the admin opened the panel - only add the missing phase field,
-          // never overwrite the whole node or their player entries get wiped.
-          await liveRef(code).update({ phase: 'lobby' });
         }
       }catch(e){ flash("Gagal membuka sesi live. Coba lagi."); return; }
       if (hostLiveListener) liveRef(code).off('value', hostLiveListener);
@@ -972,10 +967,6 @@
     }
 
     // ---------------- LIVE MODE (student side) ----------------
-    // Students only ever see the lobby here. Once the host starts the
-    // session, each student's browser detaches this listener and drops
-    // straight into the normal self-paced startQuiz() flow (same quiz-screen
-    // as "Mandiri" mode) - nobody waits on anyone else after that point.
     function getOrCreatePlayerId(code){
       const key = 'quizarena_playerid_'+normalizeCode(code);
       let id = localStorage.getItem(key);
@@ -983,6 +974,11 @@
       return id;
     }
     let liveStudentListener = null;
+    function showLiveSubview(name){
+      ['lobby','question','waiting','leaderboard'].forEach(v=>{
+        $('live-sv-'+v).classList.toggle('hidden', v!==name);
+      });
+    }
     async function startLiveStudent(code){
       const playerId = getOrCreatePlayerId(code);
       state._livePlayerId = playerId;
@@ -993,6 +989,7 @@
         await liveRef(code).child('players/'+playerId).set({ name: state.studentName, score: 0, correctCount: 0, finished: false });
       }catch(e){ flash("Gagal gabung ke sesi live. Coba lagi."); return; }
       showScreen('live-student');
+      showLiveSubview('lobby');
       if (liveStudentListener) liveRef(code).off('value', liveStudentListener);
       liveStudentListener = snapshot => {
         const session = snapshot.val() || {};
