@@ -925,8 +925,13 @@
       try{
         const snap = await liveRef(code).once('value');
         const existing = snap.val();
-        if (!existing || !existing.phase) {
+        if (!existing) {
           await liveRef(code).set({ phase: 'lobby', players: {} });
+        } else if (!existing.phase) {
+          // Students may have already joined (and created this node) before
+          // the admin opened the panel - only add the missing phase field,
+          // never overwrite the whole node or their player entries get wiped.
+          await liveRef(code).update({ phase: 'lobby' });
         }
       }catch(e){ flash("Gagal membuka sesi live. Coba lagi."); return; }
       if (hostLiveListener) liveRef(code).off('value', hostLiveListener);
