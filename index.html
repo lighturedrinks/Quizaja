@@ -38,6 +38,10 @@
     .question-card:hover { transform:translateY(-2px); }
     .leaderboard-scroll { overflow-x:auto; }
     @keyframes rise { from { opacity:0;transform:translateY(12px) } to { opacity:1;transform:translateY(0) } }
+    @keyframes confetti-fall { 0% { transform:translateY(-20px) rotate(0deg); opacity:1; } 100% { transform:translateY(420px) rotate(540deg); opacity:0; } }
+    .confetti-piece { position:absolute; top:-20px; width:8px; height:14px; opacity:.9; animation:confetti-fall 2.8s ease-in forwards; border-radius:2px; }
+    @keyframes podium-pop { 0% { transform:scale(.6); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); opacity:1; } }
+    .podium-pop { animation:podium-pop .5s ease-out both; }
     @media (max-width:640px) { .timer-ring { width:62px;height:62px }.timer-inner { width:50px;height:50px } }
   </style>
  </head>
@@ -333,12 +337,36 @@
       </div>
 
       <div id="host-live-active" class="hidden rounded-[2rem] bg-white panel-shadow p-8">
-       <div id="host-live-ended-banner" class="hidden mb-5 rounded-xl bg-[#fff0ef] px-4 py-3 text-sm font-bold text-[#c3484c]">Sesi ini sudah diakhiri. Siswa baru nggak bisa join lagi — ini leaderboard finalnya. <button type="button" class="ml-2 underline" onclick="resetLiveSession()">Mulai sesi baru</button></div>
        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 class="brand-font font-bold" style="color:#202b58;font-size:26px;">Leaderboard Live</h2>
         <p class="font-bold" style="color:#202b58;"><span id="host-live-finished-count">0</span> / <span id="host-live-total-count">0</span> sudah selesai</p>
        </div>
        <div id="host-live-active-list" class="space-y-2"></div>
+      </div>
+
+      <div id="host-live-podium" class="hidden relative overflow-hidden rounded-[2rem] bg-white panel-shadow p-8 text-center">
+       <div id="confetti-container" class="pointer-events-none absolute inset-0 overflow-hidden"></div>
+       <div class="relative mb-5 inline-flex items-center gap-2 rounded-xl bg-[#fff0ef] px-4 py-3 text-sm font-bold text-[#c3484c]">Sesi diakhiri — siswa baru nggak bisa join lagi. <button type="button" class="underline" onclick="resetLiveSession()">Mulai sesi baru</button></div>
+       <h2 class="brand-font relative font-bold" style="color:#202b58;font-size:30px;">🎉 Juara Sesi Ini 🎉</h2>
+       <div class="relative mt-10 flex items-end justify-center gap-3 sm:gap-5">
+        <div class="flex flex-col items-center">
+         <p id="podium-2-name" class="max-w-[6.5rem] truncate font-extrabold" style="color:#202b58;"></p>
+         <p id="podium-2-score" class="mb-2 text-sm font-bold" style="color:#6d4aff;"></p>
+         <div class="flex w-20 sm:w-24 items-center justify-center rounded-t-xl text-3xl" style="height:110px;background:#d6d8ea;">🥈</div>
+        </div>
+        <div class="flex flex-col items-center">
+         <p id="podium-1-name" class="max-w-[7.5rem] truncate text-lg font-extrabold" style="color:#202b58;"></p>
+         <p id="podium-1-score" class="mb-2 text-sm font-bold" style="color:#6d4aff;"></p>
+         <div class="flex w-24 sm:w-28 items-center justify-center rounded-t-xl text-4xl" style="height:150px;background:#ffd76a;">🥇</div>
+        </div>
+        <div class="flex flex-col items-center">
+         <p id="podium-3-name" class="max-w-[6.5rem] truncate font-extrabold" style="color:#202b58;"></p>
+         <p id="podium-3-score" class="mb-2 text-sm font-bold" style="color:#6d4aff;"></p>
+         <div class="flex w-20 sm:w-24 items-center justify-center rounded-t-xl text-3xl" style="height:80px;background:#e3b389;">🥉</div>
+        </div>
+       </div>
+       <div id="podium-rest-list" class="relative mx-auto mt-8 max-w-md space-y-2 text-left"></div>
+       <p class="relative mt-6 font-bold" style="color:#202b58;"><span id="host-live-finished-count-podium">0</span> / <span id="host-live-total-count-podium">0</span> sudah selesai</p>
       </div>
      </div>
     </section>
@@ -953,6 +981,7 @@
       $("host-live-code-big").textContent = code;
       $("host-live-title").textContent = state.draft.title;
       state._hostLiveCode = code;
+      state._podiumAnimated = false;
       showScreen('host-live');
       try{
         const snap = await liveRef(code).once('value');
@@ -974,17 +1003,52 @@
       $("host-live-player-list").innerHTML = playerList.map(p=>`<span class="rounded-full bg-[#eef0ff] px-3 py-1 text-sm font-bold text-[#4630b0]">${escapeHtml(p.name)}${p.finished?' ✅':''}</span>`).join("");
 
       $("host-live-lobby").classList.toggle("hidden", phase !== "lobby");
-      $("host-live-active").classList.toggle("hidden", phase !== "started" && phase !== "ended");
+      $("host-live-active").classList.toggle("hidden", phase !== "started");
+      $("host-live-podium").classList.toggle("hidden", phase !== "ended");
       $("host-live-end-btn").classList.toggle("hidden", phase === "ended");
-      $("host-live-ended-banner").classList.toggle("hidden", phase !== "ended");
 
-      if (phase === "started" || phase === "ended") {
+      if (phase === "started") {
         const ranked = playerList.slice().sort((a,b)=>(b.score||0)-(a.score||0));
         const finished = playerList.filter(p=>p.finished).length;
         $("host-live-finished-count").textContent = finished;
         $("host-live-total-count").textContent = playerList.length;
         $("host-live-active-list").innerHTML = ranked.length ? ranked.map((p,i)=>`<div class="flex items-center justify-between rounded-xl bg-[#f7f6ff] px-4 py-3"><span class="font-bold text-[#202b58]">${i+1}. ${escapeHtml(p.name)}${p.finished?' ✅':''}</span><span class="font-extrabold text-[#6d4aff]">${p.score||0} poin</span></div>`).join("") : '<p class="text-sm font-semibold text-[#68718f]">Belum ada yang mulai jawab.</p>';
       }
+      if (phase === "ended") {
+        renderPodium(playerList);
+      }
+    }
+    function renderPodium(playerList){
+      const ranked = playerList.slice().sort((a,b)=>(b.score||0)-(a.score||0));
+      const finished = playerList.filter(p=>p.finished).length;
+      $("host-live-finished-count-podium").textContent = finished;
+      $("host-live-total-count-podium").textContent = playerList.length;
+      const setSlot = (rank, player) => {
+        $("podium-"+rank+"-name").textContent = player ? player.name : "-";
+        $("podium-"+rank+"-score").textContent = player ? (player.score||0)+" poin" : "";
+      };
+      setSlot(1, ranked[0]); setSlot(2, ranked[1]); setSlot(3, ranked[2]);
+      const rest = ranked.slice(3);
+      $("podium-rest-list").innerHTML = rest.length ? rest.map((p,i)=>`<div class="flex items-center justify-between rounded-xl bg-[#f7f6ff] px-4 py-3"><span class="font-bold text-[#202b58]">${i+4}. ${escapeHtml(p.name)}</span><span class="font-extrabold text-[#6d4aff]">${p.score||0} poin</span></div>`).join("") : "";
+      if (!state._podiumAnimated) {
+        state._podiumAnimated = true;
+        document.querySelectorAll("#host-live-podium .flex.flex-col.items-center").forEach(el=>{ el.classList.remove("podium-pop"); void el.offsetWidth; el.classList.add("podium-pop"); });
+        spawnConfetti($("confetti-container"));
+      }
+    }
+    function spawnConfetti(container){
+      container.innerHTML = "";
+      const colors = ["#6d4aff","#ffcf3a","#37d8b0","#ff8b78","#77d7ff","#a693ff"];
+      for(let i=0;i<50;i++){
+        const el = document.createElement("div");
+        el.className = "confetti-piece";
+        el.style.left = Math.random()*100+"%";
+        el.style.background = colors[Math.floor(Math.random()*colors.length)];
+        el.style.animationDelay = (Math.random()*0.7)+"s";
+        el.style.transform = "rotate("+Math.floor(Math.random()*360)+"deg)";
+        container.appendChild(el);
+      }
+      setTimeout(()=>{ container.innerHTML = ""; }, 3800);
     }
     async function hostStartLive(){
       const code = state._hostLiveCode;
@@ -993,6 +1057,7 @@
     }
     async function resetLiveSession(){
       const code = state._hostLiveCode;
+      state._podiumAnimated = false;
       try{ await liveRef(code).set({ phase: 'lobby', players: {} }); flash("Sesi live direset."); }
       catch(e){ flash("Gagal reset sesi."); }
     }
