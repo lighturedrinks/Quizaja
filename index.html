@@ -155,7 +155,7 @@
          </div>
         </div>
         <p id="admin-gate-error" class="hidden rounded-xl bg-[#ffe8e8] px-4 py-3 text-sm font-semibold text-[#b42d39]" role="alert"></p>
-        <button type="button" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;" onclick="checkAdminGate()">Masuk</button>
+        <button id="admin-gate-submit" type="button" class="w-full rounded-2xl px-5 py-4 font-extrabold" style="background:#6d4aff;color:#fff;" onclick="checkAdminGate()">Masuk</button>
        </div>
        <button type="button" class="mt-4 w-full rounded-2xl px-5 py-4 font-extrabold" onclick="showScreen('join')" style="background:#f0eeff;color:#6040e5;">Kembali ke Halaman Siswa</button>
       </section>
@@ -456,23 +456,46 @@
       btn.textContent = showing ? "👁️" : "🙈";
     }
 
-    // Front-door gate to the admin area. This is a simple, editable
-    // client-side check - not the real security boundary. Change this string
-    // whenever you want a new gate password.
-    const ADMIN_GATE_PASSWORD = "Pajak123#";
+    // Front-door gate to the admin area. The password itself is never stored
+    // in this file - only its SHA-256 hash lives in Firebase at
+    // config/adminGate, and only the site owner can change it (via the
+    // Firebase Console directly; the app itself has no write access to it).
+    // This is still just a soft deterrent, not the real security boundary -
+    // the real protection is each quiz code's own password.
+    async function sha256Hex(text){
+      const data = new TextEncoder().encode(text);
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
     function toggleGatePasswordVisibility(){
       const input=$("admin-gate-password");
       input.type = input.type === "text" ? "password" : "text";
     }
-    function checkAdminGate(){
+    async function checkAdminGate(){
       const value = $("admin-gate-password").value;
-      if (value !== ADMIN_GATE_PASSWORD) {
-        setError("admin-gate-error","Password salah.");
-        return;
+      if (!value) { setError("admin-gate-error","Masukkan password."); return; }
+      const submitBtn = $("admin-gate-submit");
+      if (submitBtn) submitBtn.disabled = true;
+      try{
+        const snap = await db.ref("config/adminGate").once("value");
+        const storedHash = snap.val();
+        if (!storedHash) {
+          setError("admin-gate-error","Password gerbang belum diatur di Firebase. Hubungi pemilik situs.");
+          return;
+        }
+        const enteredHash = await sha256Hex(value);
+        if (enteredHash !== storedHash) {
+          setError("admin-gate-error","Password salah.");
+          return;
+        }
+        hideError("admin-gate-error");
+        $("admin-gate-password").value="";
+        showScreen('admin');
+      }catch(e){
+        setError("admin-gate-error","Gagal memeriksa password. Cek koneksi internet lalu coba lagi.");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
-      hideError("admin-gate-error");
-      $("admin-gate-password").value="";
-      showScreen('admin');
     }
     $("admin-gate-password").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); checkAdminGate(); } });
 
